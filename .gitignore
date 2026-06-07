@@ -1,0 +1,23 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+media/
+out/
+*.vsix
+
+# 日志
+*.log
+npm-debug.log*
+
+# 系统文件
+.DS_Store
+
+# 编辑器 / Agent 工具本地文件
+.vscode-test/
+.claude/
+.agents/
+.codex/
+CLAUDE.md
+AGENTS.md
