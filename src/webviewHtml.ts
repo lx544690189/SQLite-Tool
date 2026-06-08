@@ -58,7 +58,7 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
     <title>SQLite 管理器</title>
   </head>
   <body>
-    <div id="root" style="padding: 16px; color: var(--vscode-foreground, #d4d4d4); font-family: var(--vscode-font-family, sans-serif);">
+    <div id="root" style="color: var(--vscode-foreground, #d4d4d4); font-family: var(--vscode-font-family, sans-serif);">
       正在连接 Webview 开发服务器...
     </div>
   </body>
