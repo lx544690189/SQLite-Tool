@@ -20,6 +20,24 @@ import SqlExecutor from './components/SqlExecutor';
 type View = 'data' | 'sql';
 type ThemeMode = 'auto' | 'light' | 'dark';
 
+function InitialLoading() {
+  return (
+    <div
+      style={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--vscode-editor-background, transparent)',
+        borderLeft: '1px solid var(--vscode-panel-border, rgba(128,128,128,.32))',
+      }}
+    >
+      <Spin size="large" />
+    </div>
+  );
+}
+
 function readVscodeDark(): boolean {
   return (
     document.body.classList.contains('vscode-dark') ||
@@ -64,7 +82,16 @@ export default function App() {
         message={{ maxCount: 3 }}
         notification={{ placement: 'bottomRight' }}
       >
-        <Layout style={{ height: '100vh', background: 'transparent' }}>
+        {snap.loading ? (
+          <InitialLoading />
+        ) : (
+          <Layout
+            style={{
+              height: '100vh',
+              background: 'transparent',
+              borderLeft: '1px solid var(--vscode-panel-border, rgba(128,128,128,.32))',
+            }}
+          >
           <Layout.Sider
             width={250}
             theme={dark ? 'dark' : 'light'}
@@ -78,13 +105,7 @@ export default function App() {
           <Layout.Content
             style={{ background: 'transparent', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
           >
-            {snap.loading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 80 }}>
-                <Spin size="large">
-                  <div style={{ width: 160, height: 80 }} />
-                </Spin>
-              </div>
-            ) : snap.error && !snap.initialized ? (
+            {snap.error && !snap.initialized ? (
               <Result
                 status="error"
                 icon={<DatabaseOutlined />}
@@ -131,6 +152,7 @@ export default function App() {
             )}
           </Layout.Content>
         </Layout>
+        )}
       </AntdApp>
     </ConfigProvider>
   );

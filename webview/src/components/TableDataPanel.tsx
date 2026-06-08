@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
+  ConfigProvider,
   Empty,
   Input,
   InputNumber,
@@ -26,6 +27,15 @@ import TableSearch, { type SearchCondition } from './TableSearch';
 const PAGE_SIZE_OPTIONS = ['20', '50', '100'];
 const TABLE_HEADER_HEIGHT = 40;
 const MIN_TABLE_BODY_HEIGHT = 160;
+const DEFAULT_COLUMN_WIDTH = 180;
+const ACTION_COLUMN_WIDTH = 70;
+const MIN_TABLE_WIDTH = 720;
+const TABLE_BACKGROUND = 'var(--vscode-editor-background, #1e1e1e)';
+const TABLE_HEADER_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 88%, var(--vscode-foreground, #ffffff) 12%)';
+const TABLE_HOVER_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 84%, var(--vscode-foreground, #ffffff) 16%)';
+const TABLE_SORT_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 90%, var(--vscode-foreground, #ffffff) 10%)';
+const TABLE_BORDER = 'var(--vscode-panel-border, rgba(128, 128, 128, 0.28))';
+const TABLE_FIXED_SHADOW = 'rgba(0, 0, 0, 0.34)';
 
 interface SortState {
   field?: string;
@@ -40,6 +50,33 @@ function renderCell(value: unknown) {
     return <span style={{ opacity: 0.7 }}>[BLOB]</span>;
   }
   return String(value);
+}
+
+function getCellTitle(value: unknown, editable: boolean): string | undefined {
+  if (value === null || value === undefined) {
+    return editable ? '双击编辑' : undefined;
+  }
+  const text = typeof value === 'object' ? '[BLOB]' : String(value);
+  return editable ? `${text}\n双击编辑` : text;
+}
+
+function getColumnWidth(col: { name: string; type?: string }) {
+  const name = col.name.toLowerCase();
+  const type = (col.type || '').toUpperCase();
+
+  if (name === 'id' || name.endsWith('_id') || type === 'INTEGER') {
+    return 120;
+  }
+  if (type.includes('DATE') || type.includes('TIME') || name.includes('time') || name.includes('date')) {
+    return 210;
+  }
+  if (type.includes('BLOB')) {
+    return 140;
+  }
+  if (name.includes('json') || name.includes('payload') || name.includes('message') || type.includes('TEXT')) {
+    return 280;
+  }
+  return DEFAULT_COLUMN_WIDTH;
 }
 
 interface EditableCellProps {
@@ -91,7 +128,14 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
 
   return (
     <div
-      style={{ minHeight: 22, cursor: editable ? 'text' : 'default' }}
+      style={{
+        minHeight: 22,
+        width: '100%',
+        cursor: editable ? 'text' : 'default',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
       onDoubleClick={() => {
         if (editable) {
           committedRef.current = false;
@@ -106,7 +150,7 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
           setEditing(true);
         }
       }}
-      title={editable ? '双击编辑' : undefined}
+      title={getCellTitle(value, editable)}
     >
       {renderCell(value)}
     </div>
@@ -236,6 +280,7 @@ export default function TableDataPanel() {
         ),
         dataIndex: col.name,
         key: col.name,
+        width: getColumnWidth(col),
         ellipsis: true,
         sorter: true,
         sortOrder: sort.field === col.name ? (sort.order === 'ASC' ? 'ascend' : 'descend') : null,
@@ -255,7 +300,17 @@ export default function TableDataPanel() {
         title: '操作',
         key: '__actions__',
         fixed: 'right',
-        width: 70,
+        width: ACTION_COLUMN_WIDTH,
+        onHeaderCell: () => ({
+          style: {
+            background: TABLE_HEADER_BACKGROUND,
+          },
+        }),
+        onCell: () => ({
+          style: {
+            background: TABLE_BACKGROUND,
+          },
+        }),
         render: (_: unknown, row: Record<string, any>) => (
           <Popconfirm
             title="确认删除该行？"
@@ -264,13 +319,20 @@ export default function TableDataPanel() {
             okButtonProps={{ danger: true }}
             onConfirm={() => handleDelete(row)}
           >
-            <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+            <Button type="text" size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         ),
       });
     }
     return dataCols;
   }, [schema, sort, canEdit]);
+
+  const tableScrollX = useMemo(() => {
+    const width = columns.reduce((total, col) => {
+      return total + (typeof col.width === 'number' ? col.width : DEFAULT_COLUMN_WIDTH);
+    }, 0);
+    return Math.max(MIN_TABLE_WIDTH, width);
+  }, [columns]);
 
   if (!tableName) {
     return <Empty description="请选择左侧的表" style={{ marginTop: 80 }} />;
@@ -304,34 +366,61 @@ export default function TableDataPanel() {
       {error && <Alert type="error" title={error} showIcon style={{ marginBottom: 12 }} />}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div ref={tableViewportRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <Table
-            ref={tableRef}
-            size="small"
-            loading={loading}
-            rowKey={(row) =>
-              row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row)
-            }
-            columns={columns}
-            dataSource={result?.data ?? []}
-            scroll={{ x: 'max-content', y: tableScrollY, scrollToFirstRowOnChange: true }}
-            pagination={false}
-            onChange={(_pagination, _filters, sorter) => {
-              const s = sorter as SorterResult<any>;
-              if (s.order) {
-                setSort({ field: s.field as string, order: s.order === 'ascend' ? 'ASC' : 'DESC' });
-              } else {
-                setSort({});
-              }
-              setPage(1);
-              scrollTableToTop();
+          <ConfigProvider
+            theme={{
+              token: {
+                colorBgContainer: TABLE_BACKGROUND,
+                colorSplit: TABLE_FIXED_SHADOW,
+              },
+              components: {
+                Table: {
+                  headerBg: TABLE_HEADER_BACKGROUND,
+                  headerSortActiveBg: TABLE_SORT_BACKGROUND,
+                  headerSortHoverBg: TABLE_HOVER_BACKGROUND,
+                  bodySortBg: TABLE_SORT_BACKGROUND,
+                  rowHoverBg: TABLE_HOVER_BACKGROUND,
+                  rowSelectedBg: TABLE_HOVER_BACKGROUND,
+                  rowSelectedHoverBg: 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 80%, var(--vscode-foreground, #ffffff) 20%)',
+                  borderColor: TABLE_BORDER,
+                  headerSplitColor: TABLE_BORDER,
+                },
+              },
             }}
-          />
+          >
+            <Table
+              ref={tableRef}
+              size="small"
+              loading={loading}
+              tableLayout="fixed"
+              styles={{
+                root: { background: TABLE_BACKGROUND },
+                content: { background: TABLE_BACKGROUND },
+              }}
+              rowKey={(row) =>
+                row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row)
+              }
+              columns={columns}
+              dataSource={result?.data ?? []}
+              scroll={{ x: tableScrollX, y: tableScrollY, scrollToFirstRowOnChange: true }}
+              pagination={false}
+              onChange={(_pagination, _filters, sorter) => {
+                const s = sorter as SorterResult<any>;
+                if (s.order) {
+                  setSort({ field: s.field as string, order: s.order === 'ascend' ? 'ASC' : 'DESC' });
+                } else {
+                  setSort({});
+                }
+                setPage(1);
+                scrollTableToTop();
+              }}
+            />
+          </ConfigProvider>
         </div>
         <div
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            padding: '10px 0 14px',
+            padding: '10px 0 7px',
             flexShrink: 0,
           }}
         >

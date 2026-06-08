@@ -63,12 +63,14 @@ export default function Sidebar() {
               return (
                 <li
                   key={t.name}
+                  className={active ? 'sqlite-table-list-item is-active' : 'sqlite-table-list-item'}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    background: active
-                      ? 'var(--vscode-list-activeSelectionBackground, rgba(120,120,120,.2))'
-                      : 'transparent',
+                    borderLeft: active
+                      ? '2px solid var(--vscode-focusBorder, var(--vscode-button-background, #3794ff))'
+                      : '2px solid transparent',
+                    background: active ? 'rgba(127, 127, 127, 0.16)' : 'transparent',
                   }}
                 >
                   <button
@@ -81,12 +83,10 @@ export default function Sidebar() {
                       gap: 8,
                       border: 'none',
                       cursor: 'pointer',
-                      padding: '6px 4px 6px 12px',
+                      padding: '6px 4px 6px 10px',
                       textAlign: 'left',
                       background: 'transparent',
-                      color: active
-                        ? 'var(--vscode-list-activeSelectionForeground, inherit)'
-                        : 'var(--vscode-foreground, inherit)',
+                      color: 'var(--vscode-foreground, inherit)',
                       overflow: 'hidden',
                     }}
                   >
@@ -128,7 +128,7 @@ export default function Sidebar() {
         onCancel={() => setRenameTarget(null)}
         okText="确定"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Input
           value={renameValue}

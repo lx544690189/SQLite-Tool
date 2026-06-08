@@ -45,6 +45,28 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <style>
+      html, body, #root { height: 100%; width: 100%; margin: 0; }
+      body { overflow: hidden; background: var(--vscode-editor-background, transparent); }
+      .sqlite-initial-loading {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid var(--vscode-panel-border, rgba(128,128,128,.32));
+      }
+      .sqlite-initial-loading::before {
+        content: "";
+        width: 28px;
+        height: 28px;
+        border: 2px solid var(--vscode-progressBar-background, rgba(117,117,117,.36));
+        border-top-color: var(--vscode-progressBar-background, #3794ff);
+        border-radius: 50%;
+        animation: sqlite-spin 0.8s linear infinite;
+      }
+      @keyframes sqlite-spin { to { transform: rotate(360deg); } }
+    </style>
     <script nonce="${nonce}">window.__SQL_WASM_URI__ = "${wasmUri}";</script>
     <script nonce="${nonce}" type="module">
       import RefreshRuntime from "${devOrigin}/@react-refresh";
@@ -58,9 +80,7 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
     <title>SQLite 管理器</title>
   </head>
   <body>
-    <div id="root" style="color: var(--vscode-foreground, #d4d4d4); font-family: var(--vscode-font-family, sans-serif);">
-      正在连接 Webview 开发服务器...
-    </div>
+    <div id="root"><div class="sqlite-initial-loading"></div></div>
   </body>
 </html>`;
 }

@@ -4,9 +4,48 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SQLite 管理器</title>
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        background: var(--vscode-editor-background, transparent);
+      }
+
+      .sqlite-initial-loading {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.32));
+      }
+
+      .sqlite-initial-loading::before {
+        content: "";
+        width: 28px;
+        height: 28px;
+        border: 2px solid var(--vscode-progressBar-background, rgba(117, 117, 117, 0.36));
+        border-top-color: var(--vscode-progressBar-background, #3794ff);
+        border-radius: 50%;
+        animation: sqlite-spin 0.8s linear infinite;
+      }
+
+      @keyframes sqlite-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="sqlite-initial-loading"></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
