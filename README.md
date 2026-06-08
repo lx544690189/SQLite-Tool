@@ -46,8 +46,14 @@ npm run watch:webview
 生成测试数据库：
 
 ```bash
-node scripts/make-sample-db.cjs   # 生成 sample.db
+npm run sample:db   # 生成 db/ 目录下的 3 份样本库
 ```
+
+生成结果默认输出到 `db/`（已加入 `.gitignore`），包含：
+
+- `sample-mixed.db`：常规混合场景，含多表、超长列名、超长文本、NULL、带空格列名。
+- `sample-wide.sqlite`：宽表场景，25 列，覆盖横向滚动与长表头展示。
+- `sample-large.sqlite3`：大数据量场景，`event_logs` 表 5200 行，含长文本与 JSON 文本列。
 
 逻辑自检脚本（无需 VSCode）：
 

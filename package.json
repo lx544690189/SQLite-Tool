@@ -34,6 +34,7 @@
     "build": "npm run build:webview && npm run build:ext",
     "watch:webview": "vite build --watch --config webview/vite.config.ts",
     "watch:ext": "node esbuild.js --watch",
+    "sample:db": "node scripts/make-sample-db.cjs",
     "package": "npm run build && vsce package"
   },
   "dependencies": {

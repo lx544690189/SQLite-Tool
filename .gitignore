@@ -15,7 +15,7 @@ npm-debug.log*
 .DS_Store
 
 # 测试样本
-sample.db
+db/
 
 # 编辑器 / Agent 工具本地文件
 .vscode-test/
