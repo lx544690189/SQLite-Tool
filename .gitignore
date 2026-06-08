@@ -14,6 +14,9 @@ npm-debug.log*
 # 系统文件
 .DS_Store
 
+# 测试样本
+sample.db
+
 # 编辑器 / Agent 工具本地文件
 .vscode-test/
 .claude/

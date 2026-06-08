@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "dev:webview",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:\\s+http://localhost:19753/"
+        }
+      },
+      "label": "npm: dev:webview",
+      "detail": "启动 Vite Webview HMR 开发服务器"
+    },
+    {
+      "type": "npm",
+      "script": "watch:ext",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "esbuild",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "\\[esbuild\\] 监听宿主代码变更中\\.\\.\\."
+        }
+      },
+      "label": "npm: watch:ext",
+      "detail": "监听并构建扩展宿主"
+    },
+    {
+      "label": "dev: watch",
+      "dependsOrder": "parallel",
+      "dependsOn": ["npm: dev:webview", "npm: watch:ext"],
+      "problemMatcher": []
+    },
+    {
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": [],
+      "label": "npm: build",
+      "detail": "构建 Webview 与扩展宿主"
+    }
+  ]
+}

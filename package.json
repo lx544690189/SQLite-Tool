@@ -1,0 +1,67 @@
+{
+  "name": "sqlite-manager",
+  "displayName": "SQLite 管理器",
+  "description": "在 VSCode 中可视化浏览与编辑 SQLite 数据库文件",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "sqliteManager.editor",
+        "displayName": "SQLite 管理器",
+        "selector": [
+          { "filenamePattern": "*.db" },
+          { "filenamePattern": "*.sqlite" },
+          { "filenamePattern": "*.sqlite3" }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "dev:webview": "vite --config webview/vite.config.ts",
+    "build:webview": "vite build --config webview/vite.config.ts",
+    "build:ext": "node esbuild.js",
+    "build": "npm run build:webview && npm run build:ext",
+    "watch:webview": "vite build --watch --config webview/vite.config.ts",
+    "watch:ext": "node esbuild.js --watch",
+    "package": "npm run build && vsce package"
+  },
+  "dependencies": {
+    "@ant-design/cssinjs": "^2.0.3",
+    "@ant-design/icons": "^6.1.0",
+    "@monaco-editor/react": "^4.7.0",
+    "antd": "^6.2.2",
+    "dayjs": "^1.11.19",
+    "lodash-es": "^4.17.23",
+    "monaco-editor": "^0.55.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "sql-formatter": "^15.7.0",
+    "sql.js": "1.13.0",
+    "uuid": "^13.0.0",
+    "valtio": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^24.10.9",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@types/sql.js": "^1.4.9",
+    "@types/vscode": "^1.90.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "esbuild": "^0.24.0",
+    "less": "^4.5.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
