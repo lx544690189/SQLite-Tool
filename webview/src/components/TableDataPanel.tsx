@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -22,6 +22,11 @@ import { useSnapshot } from 'valtio';
 import { addRow, dbState, editCell, helper, removeRow } from '../store/db';
 import { ROWID_ALIAS, type PageResult } from '../utils/SQLiteHelper';
 import AddDataModal from './AddDataModal';
+import {
+  getColumnWidthKey,
+  ResizableHeaderCell,
+  type ResizableHeaderCellProps,
+} from './ResizableTableHeader';
 import TableSearch, { type SearchCondition } from './TableSearch';
 
 const PAGE_SIZE_OPTIONS = ['20', '50', '100'];
@@ -172,6 +177,7 @@ export default function TableDataPanel() {
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [tableScrollY, setTableScrollY] = useState(MIN_TABLE_BODY_HEIGHT);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const tableViewportRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<TableRef>(null);
 
@@ -265,8 +271,20 @@ export default function TableDataPanel() {
     }
   };
 
+  const resizeColumn = useCallback(
+    (columnName: string, width: number) => {
+      if (!tableName) return;
+      const key = getColumnWidthKey(tableName, columnName);
+      setColumnWidths((prev) => ({ ...prev, [key]: width }));
+    },
+    [tableName],
+  );
+
   const columns: ColumnsType<any> = useMemo(() => {
     const dataCols: ColumnsType<any> = schema.map((col) => {
+      const width = tableName
+        ? (columnWidths[getColumnWidthKey(tableName, col.name)] ?? getColumnWidth(col))
+        : getColumnWidth(col);
       const numeric = ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE'].includes(
         (col.type || '').toUpperCase(),
       );
@@ -280,10 +298,15 @@ export default function TableDataPanel() {
         ),
         dataIndex: col.name,
         key: col.name,
-        width: getColumnWidth(col),
+        width,
         ellipsis: true,
         sorter: true,
         sortOrder: sort.field === col.name ? (sort.order === 'ASC' ? 'ascend' : 'descend') : null,
+        onHeaderCell: () => ({
+          width,
+          resizable: true,
+          onColumnResize: (nextWidth: number) => resizeColumn(col.name, nextWidth),
+        }) as ResizableHeaderCellProps,
         render: (value: unknown, row: Record<string, any>) => (
           <EditableCell
             value={value}
@@ -325,7 +348,16 @@ export default function TableDataPanel() {
       });
     }
     return dataCols;
-  }, [schema, sort, canEdit]);
+  }, [schema, tableName, columnWidths, sort, canEdit, resizeColumn]);
+
+  const tableComponents = useMemo(
+    () => ({
+      header: {
+        cell: ResizableHeaderCell,
+      },
+    }),
+    [],
+  );
 
   const tableScrollX = useMemo(() => {
     const width = columns.reduce((total, col) => {
@@ -399,6 +431,7 @@ export default function TableDataPanel() {
               rowKey={(row) =>
                 row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row)
               }
+              components={tableComponents}
               columns={columns}
               dataSource={result?.data ?? []}
               scroll={{ x: tableScrollX, y: tableScrollY, scrollToFirstRowOnChange: true }}

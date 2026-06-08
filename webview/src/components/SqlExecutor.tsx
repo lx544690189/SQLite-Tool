@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Alert, Button, Dropdown, Empty, Space, Table, Tag, Typography, message } from 'antd';
 import { CaretRightOutlined, ClearOutlined, FormatPainterOutlined, HistoryOutlined } from '@ant-design/icons';
@@ -6,8 +6,15 @@ import { useSnapshot } from 'valtio';
 import { dbState, helper } from '../store/db';
 import { addHistory, clearHistory, loadHistory, sqlState } from '../store/sql';
 import SQLiteHelper from '../utils/SQLiteHelper';
+import {
+  getColumnWidthKey,
+  ResizableHeaderCell,
+  type ResizableHeaderCellProps,
+} from './ResizableTableHeader';
 
 const PAGE_SIZE_OPTIONS = ['20', '50', '100'];
+const DEFAULT_RESULT_COLUMN_WIDTH = 180;
+const MIN_RESULT_TABLE_WIDTH = 720;
 
 interface ResultState {
   columns: string[];
@@ -24,6 +31,7 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
   const [result, setResult] = useState<ResultState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
 
   useEffect(() => {
     void loadHistory();
@@ -68,6 +76,47 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
   };
 
   const format = () => setSql(SQLiteHelper.formatSQL(sql));
+
+  const resizeColumn = useCallback((columnName: string, width: number) => {
+    const key = getColumnWidthKey('sql-result', columnName);
+    setColumnWidths((prev) => ({ ...prev, [key]: width }));
+  }, []);
+
+  const resultColumns = useMemo(
+    () =>
+      result?.columns.map((c) => {
+        const width = columnWidths[getColumnWidthKey('sql-result', c)] ?? DEFAULT_RESULT_COLUMN_WIDTH;
+        return {
+          title: c,
+          dataIndex: c,
+          key: c,
+          width,
+          ellipsis: true,
+          onHeaderCell: () => ({
+            width,
+            resizable: true,
+            onColumnResize: (nextWidth: number) => resizeColumn(c, nextWidth),
+          }) as ResizableHeaderCellProps,
+          render: (v: unknown) =>
+            v === null || v === undefined ? <Tag style={{ opacity: 0.6 }}>NULL</Tag> : String(v),
+        };
+      }) ?? [],
+    [columnWidths, resizeColumn, result?.columns],
+  );
+
+  const tableComponents = useMemo(
+    () => ({
+      header: {
+        cell: ResizableHeaderCell,
+      },
+    }),
+    [],
+  );
+
+  const tableScrollX = useMemo(() => {
+    const width = resultColumns.reduce((total, col) => total + col.width, 0);
+    return Math.max(MIN_RESULT_TABLE_WIDTH, width);
+  }, [resultColumns]);
 
   if (!snap.initialized) {
     return <Empty description="数据库未就绪" style={{ marginTop: 80 }} />;
@@ -156,20 +205,15 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
             <Table
               size="small"
               rowKey={(_, i) => String(i)}
+              tableLayout="fixed"
               dataSource={result.rows.map((row, i) => {
                 const obj: any = { __i: i };
                 result.columns.forEach((c, ci) => (obj[c] = row[ci]));
                 return obj;
               })}
-              columns={result.columns.map((c) => ({
-                title: c,
-                dataIndex: c,
-                key: c,
-                ellipsis: true,
-                render: (v: unknown) =>
-                  v === null || v === undefined ? <Tag style={{ opacity: 0.6 }}>NULL</Tag> : String(v),
-              }))}
-              scroll={{ x: 'max-content' }}
+              components={tableComponents}
+              columns={resultColumns}
+              scroll={{ x: tableScrollX }}
               pagination={{
                 defaultPageSize: 20,
                 showSizeChanger: true,

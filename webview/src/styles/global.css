@@ -33,3 +33,39 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6));
 }
+
+.sqlite-resizable-header-cell {
+  position: relative;
+}
+
+.sqlite-column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  z-index: 2;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sqlite-column-resize-handle::after {
+  position: absolute;
+  top: 20%;
+  right: 3px;
+  width: 1px;
+  height: 60%;
+  content: '';
+  background: transparent;
+}
+
+.sqlite-column-resize-handle:hover::after,
+.sqlite-column-resizing .sqlite-column-resize-handle::after {
+  background: var(--vscode-focusBorder, #007fd4);
+}
+
+.sqlite-column-resizing,
+.sqlite-column-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
