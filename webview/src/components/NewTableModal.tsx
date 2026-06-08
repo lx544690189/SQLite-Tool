@@ -13,6 +13,11 @@ interface ColumnDef {
   unique: boolean;
   dflt: string;
   defaultMode: 'none' | 'literal' | 'expression' | 'null';
+  checkExpr: string;
+  refTable: string;
+  refColumn: string;
+  onDelete: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'CASCADE';
+  onUpdate: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'CASCADE';
 }
 
 const TYPE_OPTIONS = [
@@ -36,6 +41,10 @@ const DEFAULT_MODE_OPTIONS = [
   { value: 'null', label: 'NULL' },
 ];
 
+const FK_ACTION_OPTIONS = ['NO ACTION', 'RESTRICT', 'SET NULL', 'SET DEFAULT', 'CASCADE'].map(
+  (value) => ({ value, label: value }),
+);
+
 let seq = 0;
 function newCol(): ColumnDef {
   seq += 1;
@@ -49,6 +58,11 @@ function newCol(): ColumnDef {
     unique: false,
     dflt: '',
     defaultMode: 'none',
+    checkExpr: '',
+    refTable: '',
+    refColumn: '',
+    onDelete: 'NO ACTION',
+    onUpdate: 'NO ACTION',
   };
 }
 
@@ -97,6 +111,14 @@ function buildCreateSQL(tableName: string, cols: ColumnDef[]): string {
     if (c.unique && !c.pk) parts.push('UNIQUE');
     const defaultSql = buildDefaultSQL(c);
     if (defaultSql) parts.push(defaultSql);
+    if (c.checkExpr.trim()) {
+      parts.push(`CHECK (${c.checkExpr.trim()})`);
+    }
+    if (c.refTable.trim() && c.refColumn.trim()) {
+      parts.push(
+        `REFERENCES ${quoteIdent(c.refTable)} (${quoteIdent(c.refColumn)}) ON DELETE ${c.onDelete} ON UPDATE ${c.onUpdate}`,
+      );
+    }
     return parts.join(' ');
   });
   return `CREATE TABLE ${quoteIdent(tableName)} (\n${lines.join(',\n')}\n);`;
@@ -148,6 +170,22 @@ export default function NewTableModal({ open, onClose }: Props) {
             : c,
       ),
     );
+
+  const canExecute = tableName.trim() && cols.some((c) => c.name.trim()) && cols.every((c) => {
+    if (!c.name.trim()) {
+      return true;
+    }
+    if (c.defaultMode !== 'none' && c.defaultMode !== 'null' && !c.dflt.trim()) {
+      return false;
+    }
+    if (c.refTable.trim() && !c.refColumn.trim()) {
+      return false;
+    }
+    if (!c.refTable.trim() && c.refColumn.trim()) {
+      return false;
+    }
+    return true;
+  });
 
   const reset = () => {
     setTableName('');
@@ -256,6 +294,63 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
+      title: 'CHECK',
+      dataIndex: 'checkExpr',
+      width: 200,
+      render: (_: any, r: ColumnDef) => (
+        <Input
+          size="small"
+          value={r.checkExpr}
+          placeholder="如 value >= 0"
+          onChange={(e) => update(r.key, { checkExpr: e.target.value })}
+        />
+      ),
+    },
+    {
+      title: '外键引用',
+      dataIndex: 'fk',
+      width: 360,
+      render: (_: any, r: ColumnDef) => (
+        <Space.Compact style={{ width: '100%' }}>
+          <Input
+            size="small"
+            style={{ width: 110 }}
+            value={r.refTable}
+            placeholder="引用表"
+            onChange={(e) => update(r.key, { refTable: e.target.value })}
+          />
+          <Input
+            size="small"
+            style={{ width: 110 }}
+            value={r.refColumn}
+            placeholder="引用列"
+            onChange={(e) => update(r.key, { refColumn: e.target.value })}
+          />
+          <Select
+            size="small"
+            style={{ width: 136 }}
+            value={r.onDelete}
+            options={FK_ACTION_OPTIONS}
+            onChange={(v) => update(r.key, { onDelete: v })}
+          />
+        </Space.Compact>
+      ),
+    },
+    {
+      title: '更新动作',
+      dataIndex: 'onUpdate',
+      width: 136,
+      render: (_: any, r: ColumnDef) => (
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          value={r.onUpdate}
+          options={FK_ACTION_OPTIONS}
+          onChange={(v) => update(r.key, { onUpdate: v })}
+        />
+      ),
+    },
+    {
       title: '',
       width: 40,
       render: (_: any, r: ColumnDef) => (
@@ -283,7 +378,7 @@ export default function NewTableModal({ open, onClose }: Props) {
         reset();
         onClose();
       }}
-      okButtonProps={{ disabled: !tableName.trim() || !cols.some((c) => c.name.trim()) }}
+      okButtonProps={{ disabled: !canExecute }}
     >
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         <Space.Compact style={{ width: '100%' }}>
@@ -300,6 +395,7 @@ export default function NewTableModal({ open, onClose }: Props) {
           pagination={false}
           dataSource={cols}
           columns={columns as any}
+          scroll={{ x: 'max-content' }}
         />
         <Button icon={<PlusOutlined />} onClick={() => setCols((prev) => [...prev, newCol()])}>
           添加字段

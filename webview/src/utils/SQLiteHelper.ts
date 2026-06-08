@@ -50,6 +50,7 @@ class SQLiteHelper {
       this.SQL = await initSqlJs({ locateFile: () => wasmUri });
     }
     this.db = new this.SQL.Database(bytes);
+    this.db.run('PRAGMA foreign_keys = ON');
     this.initialized = true;
     this.rowKeyCache.clear();
     return true;
@@ -64,6 +65,7 @@ class SQLiteHelper {
       this.db.close();
     }
     this.db = new this.SQL.Database(bytes);
+    this.db.run('PRAGMA foreign_keys = ON');
     this.initialized = true;
     this.rowKeyCache.clear();
   }
