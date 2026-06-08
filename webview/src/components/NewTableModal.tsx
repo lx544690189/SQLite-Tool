@@ -8,17 +8,80 @@ interface ColumnDef {
   name: string;
   type: string;
   pk: boolean;
+  autoIncrement: boolean;
   notnull: boolean;
   unique: boolean;
   dflt: string;
+  defaultMode: 'none' | 'literal' | 'expression' | 'null';
 }
 
-const TYPES = ['INTEGER', 'TEXT', 'REAL', 'NUMERIC', 'BLOB'];
+const TYPE_OPTIONS = [
+  {
+    label: 'SQLite 基础类型',
+    options: ['INTEGER', 'TEXT', 'REAL', 'NUMERIC', 'BLOB'].map((t) => ({ value: t, label: t })),
+  },
+  {
+    label: '常用业务类型',
+    options: ['BOOLEAN', 'DATE', 'DATETIME', 'DECIMAL', 'JSON', 'VARCHAR(255)'].map((t) => ({
+      value: t,
+      label: t,
+    })),
+  },
+];
+
+const DEFAULT_MODE_OPTIONS = [
+  { value: 'none', label: '无' },
+  { value: 'literal', label: '值' },
+  { value: 'expression', label: '表达式' },
+  { value: 'null', label: 'NULL' },
+];
 
 let seq = 0;
 function newCol(): ColumnDef {
   seq += 1;
-  return { key: `c${seq}`, name: '', type: 'TEXT', pk: false, notnull: false, unique: false, dflt: '' };
+  return {
+    key: `c${seq}`,
+    name: '',
+    type: 'TEXT',
+    pk: false,
+    autoIncrement: false,
+    notnull: false,
+    unique: false,
+    dflt: '',
+    defaultMode: 'none',
+  };
+}
+
+function quoteIdent(name: string): string {
+  return `"${name.trim().replace(/"/g, '""')}"`;
+}
+
+function normalizeType(type: string): string {
+  return type.trim().toUpperCase();
+}
+
+function isNumericType(type: string): boolean {
+  return ['INTEGER', 'REAL', 'NUMERIC', 'DECIMAL'].includes(normalizeType(type));
+}
+
+function buildDefaultSQL(col: ColumnDef): string | null {
+  if (col.defaultMode === 'none') {
+    return null;
+  }
+  if (col.defaultMode === 'null') {
+    return 'DEFAULT NULL';
+  }
+  const value = col.dflt.trim();
+  if (!value) {
+    return null;
+  }
+  if (col.defaultMode === 'expression') {
+    return `DEFAULT ${value}`;
+  }
+  if (isNumericType(col.type) || normalizeType(col.type) === 'BOOLEAN') {
+    return `DEFAULT ${value}`;
+  }
+  return `DEFAULT '${value.replace(/'/g, "''")}'`;
 }
 
 function buildCreateSQL(tableName: string, cols: ColumnDef[]): string {
@@ -27,18 +90,16 @@ function buildCreateSQL(tableName: string, cols: ColumnDef[]): string {
     return '-- 请填写表名与至少一个字段';
   }
   const lines = valid.map((c) => {
-    const parts = [`  "${c.name.trim()}" ${c.type}`];
-    if (c.pk) parts.push('PRIMARY KEY');
+    const type = normalizeType(c.type);
+    const parts = [`  ${quoteIdent(c.name)} ${type}`];
+    if (c.pk) parts.push(`PRIMARY KEY${c.autoIncrement && type === 'INTEGER' ? ' AUTOINCREMENT' : ''}`);
     if (c.notnull) parts.push('NOT NULL');
     if (c.unique && !c.pk) parts.push('UNIQUE');
-    if (c.dflt.trim()) {
-      const isNum = ['INTEGER', 'REAL', 'NUMERIC'].includes(c.type);
-      const dv = isNum ? c.dflt.trim() : `'${c.dflt.trim().replace(/'/g, "''")}'`;
-      parts.push(`DEFAULT ${dv}`);
-    }
+    const defaultSql = buildDefaultSQL(c);
+    if (defaultSql) parts.push(defaultSql);
     return parts.join(' ');
   });
-  return `CREATE TABLE "${tableName.trim()}" (\n${lines.join(',\n')}\n);`;
+  return `CREATE TABLE ${quoteIdent(tableName)} (\n${lines.join(',\n')}\n);`;
 }
 
 interface Props {
@@ -54,6 +115,39 @@ export default function NewTableModal({ open, onClose }: Props) {
 
   const update = (key: string, patch: Partial<ColumnDef>) =>
     setCols((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+
+  const updateType = (key: string, type: string) =>
+    setCols((prev) =>
+      prev.map((c) => {
+        if (c.key !== key) return c;
+        const next = { ...c, type };
+        if (normalizeType(type) !== 'INTEGER') {
+          next.autoIncrement = false;
+        }
+        return next;
+      }),
+    );
+
+  const updatePk = (key: string, checked: boolean) =>
+    setCols((prev) =>
+      prev.map((c) => ({
+        ...c,
+        pk: c.key === key ? checked : false,
+        autoIncrement: c.key === key && checked ? c.autoIncrement : false,
+        unique: c.key === key && checked ? false : c.unique,
+      })),
+    );
+
+  const updateAutoIncrement = (key: string, checked: boolean) =>
+    setCols((prev) =>
+      prev.map((c) =>
+        c.key === key
+          ? { ...c, type: 'INTEGER', pk: true, autoIncrement: checked, unique: false }
+          : checked
+            ? { ...c, pk: false, autoIncrement: false }
+            : c,
+      ),
+    );
 
   const reset = () => {
     setTableName('');
@@ -90,14 +184,15 @@ export default function NewTableModal({ open, onClose }: Props) {
     {
       title: '类型',
       dataIndex: 'type',
-      width: 120,
+      width: 150,
       render: (_: any, r: ColumnDef) => (
         <Select
           size="small"
           style={{ width: '100%' }}
           value={r.type}
-          options={TYPES.map((t) => ({ value: t, label: t }))}
-          onChange={(v) => update(r.key, { type: v })}
+          options={TYPE_OPTIONS}
+          showSearch={{ optionFilterProp: 'label' }}
+          onChange={(v) => updateType(r.key, v)}
         />
       ),
     },
@@ -106,7 +201,19 @@ export default function NewTableModal({ open, onClose }: Props) {
       dataIndex: 'pk',
       width: 44,
       render: (_: any, r: ColumnDef) => (
-        <Checkbox checked={r.pk} onChange={(e) => update(r.key, { pk: e.target.checked })} />
+        <Checkbox checked={r.pk} onChange={(e) => updatePk(r.key, e.target.checked)} />
+      ),
+    },
+    {
+      title: '自增',
+      dataIndex: 'autoIncrement',
+      width: 56,
+      render: (_: any, r: ColumnDef) => (
+        <Checkbox
+          checked={r.autoIncrement}
+          disabled={!r.pk && normalizeType(r.type) !== 'INTEGER'}
+          onChange={(e) => updateAutoIncrement(r.key, e.target.checked)}
+        />
       ),
     },
     {
@@ -128,14 +235,24 @@ export default function NewTableModal({ open, onClose }: Props) {
     {
       title: '默认值',
       dataIndex: 'dflt',
-      width: 120,
+      width: 250,
       render: (_: any, r: ColumnDef) => (
-        <Input
-          size="small"
-          value={r.dflt}
-          placeholder="可选"
-          onChange={(e) => update(r.key, { dflt: e.target.value })}
-        />
+        <Space.Compact style={{ width: '100%' }}>
+          <Select
+            size="small"
+            style={{ width: 82 }}
+            value={r.defaultMode}
+            options={DEFAULT_MODE_OPTIONS}
+            onChange={(v) => update(r.key, { defaultMode: v })}
+          />
+          <Input
+            size="small"
+            value={r.dflt}
+            disabled={r.defaultMode === 'none' || r.defaultMode === 'null'}
+            placeholder={r.defaultMode === 'expression' ? 'CURRENT_TIMESTAMP' : '可选'}
+            onChange={(e) => update(r.key, { dflt: e.target.value })}
+          />
+        </Space.Compact>
       ),
     },
     {
@@ -158,7 +275,7 @@ export default function NewTableModal({ open, onClose }: Props) {
     <Modal
       open={open}
       title="新建表"
-      width={760}
+      width={980}
       okText="执行建表"
       cancelText="取消"
       onOk={handleExecute}
@@ -168,13 +285,15 @@ export default function NewTableModal({ open, onClose }: Props) {
       }}
       okButtonProps={{ disabled: !tableName.trim() || !cols.some((c) => c.name.trim()) }}
     >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Input
-          addonBefore="表名"
-          value={tableName}
-          placeholder="新表名称"
-          onChange={(e) => setTableName(e.target.value)}
-        />
+      <Space orientation="vertical" style={{ width: '100%' }} size="middle">
+        <Space.Compact style={{ width: '100%' }}>
+          <Space.Addon>表名</Space.Addon>
+          <Input
+            value={tableName}
+            placeholder="新表名称"
+            onChange={(e) => setTableName(e.target.value)}
+          />
+        </Space.Compact>
         <Table
           size="small"
           rowKey="key"
