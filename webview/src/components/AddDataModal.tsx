@@ -52,7 +52,7 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
       destroyOnHidden
       width={520}
       styles={{
-        content: { background: 'var(--sqlite-editor-background)' },
+        root: { background: 'var(--sqlite-editor-background)' },
         header: { background: 'var(--sqlite-editor-background)' },
         body: { background: 'var(--sqlite-editor-background)' },
         footer: { background: 'var(--sqlite-editor-background)' },

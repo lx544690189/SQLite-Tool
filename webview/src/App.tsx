@@ -10,15 +10,25 @@ import {
   Select,
   Spin,
   Result,
+  Space,
   Tooltip,
+  Typography,
   theme as antdTheme,
 } from 'antd';
-import { CodeOutlined, DatabaseOutlined, SettingOutlined, TableOutlined } from '@ant-design/icons';
+import {
+  CodeOutlined,
+  DatabaseOutlined,
+  ExclamationCircleOutlined,
+  ReloadOutlined,
+  SettingOutlined,
+  TableOutlined,
+} from '@ant-design/icons';
 import { useSnapshot } from 'valtio';
 import { bootstrap, dbState } from './store/db';
 import Sidebar from './components/Sidebar';
 import TableDataPanel from './components/TableDataPanel';
 import SqlExecutor from './components/SqlExecutor';
+import { bridge, type FileStatus } from './bridge';
 
 type View = 'data' | 'sql';
 type ThemeMode = 'auto' | 'light' | 'dark';
@@ -184,6 +194,20 @@ function readVscodeDark(): boolean {
   );
 }
 
+function formatDateTime(value?: number): string {
+  if (!value) {
+    return '--';
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(value));
+}
+
 function useVscodeDark(): boolean {
   const [dark, setDark] = useState(readVscodeDark);
   useEffect(() => {
@@ -228,6 +252,7 @@ export default function App() {
   const [settings, setSettings] = useState<UserSettings>(readSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setView] = useState<View>('data');
+  const [fileStatus, setFileStatus] = useState<FileStatus | null>(null);
   const [visitedViews, setVisitedViews] = useState<Record<View, boolean>>({
     data: true,
     sql: false,
@@ -245,12 +270,53 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    const refreshFileStatus = async () => {
+      try {
+        const next = await bridge.getFileInfo();
+        if (mounted) {
+          setFileStatus(next);
+        }
+      } catch {
+        // 文件状态仅用于提示，读取失败不阻塞主功能。
+      }
+    };
+
+    bridge.onFileStatus((next) => setFileStatus(next));
+    void refreshFileStatus();
+    const timer = window.setInterval(refreshFileStatus, 5000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshFileStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', refreshFileStatus);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', refreshFileStatus);
+    };
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
     setVisitedViews((prev) => (prev[view] ? prev : { ...prev, [view]: true }));
   }, [view]);
+
+  const reloadFromDisk = async () => {
+    try {
+      const next = await bridge.reloadFromDisk();
+      setFileStatus(next);
+    } catch {
+      // 用户取消重新加载时保持当前状态。
+    }
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -369,14 +435,42 @@ export default function App() {
                       },
                     ]}
                   />
-                  <Tooltip title="设置">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<SettingOutlined />}
-                      onClick={() => setSettingsOpen(true)}
-                    />
-                  </Tooltip>
+                  <Space size={8} align="center">
+                    <Typography.Text
+                      type="secondary"
+                      style={{ fontSize: 12, lineHeight: '24px', whiteSpace: 'nowrap' }}
+                    >
+                      最近更新 {formatDateTime(fileStatus?.modified)}
+                    </Typography.Text>
+                    {fileStatus?.externallyModified && (
+                      <>
+                        <Tooltip title="文件已被外部更改，可以重新加载防止保存时覆盖外部修改，或避免查询不到最新数据。">
+                          <ExclamationCircleOutlined
+                            style={{
+                              color: 'var(--sqlite-tag-warning-foreground)',
+                              fontSize: 15,
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip title="重新加载磁盘文件">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            onClick={reloadFromDisk}
+                          />
+                        </Tooltip>
+                      </>
+                    )}
+                    <Tooltip title="设置">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<SettingOutlined />}
+                        onClick={() => setSettingsOpen(true)}
+                      />
+                    </Tooltip>
+                  </Space>
                 </div>
                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                   <div
@@ -415,7 +509,7 @@ export default function App() {
           destroyOnHidden
           onCancel={() => setSettingsOpen(false)}
           styles={{
-            content: { background: 'var(--sqlite-editor-background)' },
+            root: { background: 'var(--sqlite-editor-background)' },
             header: { background: 'var(--sqlite-editor-background)' },
             body: { background: 'var(--sqlite-editor-background)' },
           }}

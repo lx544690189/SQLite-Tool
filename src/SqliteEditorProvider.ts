@@ -13,6 +13,12 @@ interface BinaryPayload {
   encoding: 'base64';
   value: string;
 }
+interface FileStatus {
+  size: number;
+  modified: number;
+  openedAt: number;
+  externallyModified: boolean;
+}
 /** Webview → Host 内容变更通知（标脏） */
 interface ChangedMsg {
   kind: 'changed';
@@ -139,8 +145,21 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
           break;
         }
         case 'getFileInfo': {
-          const stat = await vscode.workspace.fs.stat(document.uri);
-          respond(true, { size: stat.size, modified: stat.mtime });
+          respond(true, await this.getFileStatus(document));
+          break;
+        }
+        case 'reloadFromDisk': {
+          if (document.hasUnsavedChanges()) {
+            await vscode.commands.executeCommand('workbench.action.files.revert');
+          } else {
+            const data = await document.revert();
+            await panel.webview.postMessage({
+              kind: 'push',
+              type: 'reload',
+              data: encodeBytes(data),
+            });
+          }
+          respond(true, await this.getFileStatus(document));
           break;
         }
         case 'getDocumentUri': {
@@ -208,7 +227,9 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     document: SqliteDocument,
     cancellation: vscode.CancellationToken,
   ): Promise<void> {
+    await this.confirmSaveIfExternalChanged(document);
     await document.save(document.uri, cancellation);
+    this.postFileStatus(document);
   }
 
   async saveCustomDocumentAs(
@@ -217,12 +238,14 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     cancellation: vscode.CancellationToken,
   ): Promise<void> {
     await document.save(destination, cancellation);
+    this.postFileStatus(document);
   }
 
   async revertCustomDocument(document: SqliteDocument): Promise<void> {
     const data = await document.revert();
     const panel = this.panels.get(document.uri.toString());
     panel?.webview.postMessage({ kind: 'push', type: 'reload', data: encodeBytes(data) });
+    this.postFileStatus(document);
   }
 
   async backupCustomDocument(
@@ -230,7 +253,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     context: vscode.CustomDocumentBackupContext,
     cancellation: vscode.CancellationToken,
   ): Promise<vscode.CustomDocumentBackup> {
-    await document.save(context.destination, cancellation);
+    await document.save(context.destination, cancellation, false);
     return {
       id: context.destination.toString(),
       delete: async () => {
@@ -241,5 +264,53 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
         }
       },
     };
+  }
+
+  private async statDocument(document: SqliteDocument): Promise<vscode.FileStat> {
+    return vscode.workspace.fs.stat(document.uri);
+  }
+
+  private async getFileStatus(document: SqliteDocument): Promise<FileStatus> {
+    const stat = await this.statDocument(document);
+    const externallyModified =
+      stat.mtime > document.openedAt && document.hasExternalChange(stat);
+    return {
+      size: stat.size,
+      modified: stat.mtime,
+      openedAt: document.openedAt,
+      externallyModified,
+    };
+  }
+
+  private async postFileStatus(document: SqliteDocument): Promise<void> {
+    const panel = this.panels.get(document.uri.toString());
+    if (!panel) {
+      return;
+    }
+    try {
+      const status = await this.getFileStatus(document);
+      await panel.webview.postMessage({ kind: 'push', type: 'fileStatus', data: status });
+    } catch {
+      // 文件可能暂时不可访问，避免状态推送打断保存/还原流程。
+    }
+  }
+
+  private async confirmSaveIfExternalChanged(document: SqliteDocument): Promise<void> {
+    const stat = await this.statDocument(document);
+    if (!document.hasExternalChange(stat) || stat.mtime <= document.openedAt) {
+      return;
+    }
+
+    const overwrite = '继续保存';
+    const reload = '取消，先重新加载';
+    const choice = await vscode.window.showWarningMessage(
+      '数据库文件已被外部更改，继续保存可能会覆盖外部修改。',
+      { modal: true },
+      overwrite,
+      reload,
+    );
+    if (choice !== overwrite) {
+      throw new vscode.CancellationError();
+    }
   }
 }

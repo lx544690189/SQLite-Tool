@@ -14,6 +14,13 @@ interface BinaryPayload {
   value: string;
 }
 
+export interface FileStatus {
+  size: number;
+  modified: number;
+  openedAt: number;
+  externallyModified: boolean;
+}
+
 declare global {
   interface Window {
     acquireVsCodeApi: () => VsCodeApi;
@@ -30,21 +37,28 @@ interface ResponseMsg {
   result?: unknown;
   error?: string;
 }
-interface PushMsg {
+interface DatabasePushMsg {
   kind: 'push';
   type: 'init' | 'reload';
   data: BinaryPayload;
 }
-type HostMsg = ResponseMsg | PushMsg;
+interface FileStatusPushMsg {
+  kind: 'push';
+  type: 'fileStatus';
+  data: FileStatus;
+}
+type HostMsg = ResponseMsg | DatabasePushMsg | FileStatusPushMsg;
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 const pending = new Map<string, Pending>();
 
 type PushHandler = (data: Uint8Array) => void;
+type FileStatusHandler = (data: FileStatus) => void;
 const pushHandlers: Record<'init' | 'reload', PushHandler | null> = {
   init: null,
   reload: null,
 };
+let fileStatusHandler: FileStatusHandler | null = null;
 
 let seq = 0;
 function nextId(): string {
@@ -93,6 +107,10 @@ window.addEventListener('message', (event: MessageEvent<HostMsg>) => {
     return;
   }
   if (msg.kind === 'push') {
+    if (msg.type === 'fileStatus') {
+      fileStatusHandler?.(msg.data);
+      return;
+    }
     const handler = pushHandlers[msg.type];
     handler?.(decodeBytes(msg.data));
   }
@@ -115,6 +133,10 @@ export const bridge = {
   onReload(handler: PushHandler): void {
     pushHandlers.reload = handler;
   },
+  /** 注册文件状态推送回调 */
+  onFileStatus(handler: FileStatusHandler): void {
+    fileStatusHandler = handler;
+  },
   /** 通知宿主 Webview 已就绪，请求推送初始字节 */
   ready(): Promise<void> {
     return request<void>('ready');
@@ -124,8 +146,12 @@ export const bridge = {
     vscode.postMessage({ kind: 'changed', data: encodeBytes(data), label });
   },
   /** 文件信息（大小、修改时间） */
-  getFileInfo(): Promise<{ size: number; modified: number }> {
+  getFileInfo(): Promise<FileStatus> {
     return request('getFileInfo');
+  },
+  /** 重新从磁盘加载当前数据库 */
+  reloadFromDisk(): Promise<FileStatus> {
+    return request<FileStatus>('reloadFromDisk');
   },
   /** 当前数据库文档 URI */
   getDocumentUri(): Promise<string> {
