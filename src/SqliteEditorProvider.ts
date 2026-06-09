@@ -162,6 +162,17 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
           respond(true);
           break;
         }
+        case 'readClipboard': {
+          const text = await vscode.env.clipboard.readText();
+          respond(true, text);
+          break;
+        }
+        case 'writeClipboard': {
+          const text = typeof msg.params[0] === 'string' ? msg.params[0] : '';
+          await vscode.env.clipboard.writeText(text);
+          respond(true);
+          break;
+        }
         default:
           respond(false, undefined, `未知方法: ${msg.method}`);
       }

@@ -143,6 +143,14 @@ export const bridge = {
   saveSettings(settings: unknown): Promise<void> {
     return request<void>('saveSettings', settings);
   },
+  /** 读取 VS Code 剪贴板文本 */
+  readClipboard(): Promise<string> {
+    return request<string>('readClipboard');
+  },
+  /** 写入 VS Code 剪贴板文本 */
+  writeClipboard(text: string): Promise<void> {
+    return request<void>('writeClipboard', text);
+  },
 };
 
 export const wasmUri = window.__SQL_WASM_URI__ ?? './sql-wasm.wasm';
