@@ -276,6 +276,7 @@ export default function App() {
           colorText: 'var(--sqlite-foreground)',
           colorTextSecondary: 'var(--sqlite-secondary-foreground)',
           colorTextDisabled: 'var(--sqlite-disabled-foreground)',
+          fontSize: 12,
         },
       }}
     >

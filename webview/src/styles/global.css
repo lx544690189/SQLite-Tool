@@ -12,7 +12,7 @@ body {
   box-sizing: border-box;
   color: var(--sqlite-foreground, var(--vscode-foreground));
   font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
+  font-size: 12px;
 }
 
 *,
@@ -23,15 +23,64 @@ body {
 
 /* 滚动条贴合 VSCode 风格 */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--sqlite-scrollbar-background, var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4)));
-  border-radius: 5px;
+  border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--sqlite-scrollbar-hover-background, var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6)));
+}
+
+.sqlite-data-table,
+.sqlite-data-table * {
+  scrollbar-color: var(--sqlite-scrollbar-background, var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4))) transparent;
+  scrollbar-width: thin;
+}
+
+.sqlite-data-table::-webkit-scrollbar,
+.sqlite-data-table *::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.sqlite-data-table::-webkit-scrollbar-track,
+.sqlite-data-table *::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 0 !important;
+}
+
+.sqlite-data-table::-webkit-scrollbar-thumb,
+.sqlite-data-table *::-webkit-scrollbar-thumb {
+  background: var(--sqlite-scrollbar-background, var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4))) !important;
+  border-radius: 0 !important;
+}
+
+.sqlite-data-table::-webkit-scrollbar-thumb:hover,
+.sqlite-data-table *::-webkit-scrollbar-thumb:hover {
+  background: var(--sqlite-scrollbar-hover-background, var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6))) !important;
+}
+
+.sqlite-data-table .ant-table-sticky-scroll {
+  height: 6px !important;
+}
+
+.sqlite-data-table .ant-table-sticky-scroll-bar {
+  height: 6px !important;
+  border-radius: 0 !important;
+}
+
+.sqlite-sql-editor-panel .monaco-editor,
+.sqlite-sql-editor-panel .monaco-editor-background,
+.sqlite-sql-editor-panel .monaco-editor .margin,
+.sqlite-sql-editor-panel .monaco-editor .monaco-scrollable-element {
+  background: var(--sqlite-editor-background) !important;
+}
+
+.sqlite-sql-editor-panel .monaco-editor .overflow-guard {
+  inset: 0 !important;
 }
 
 .sqlite-resizable-header-cell {

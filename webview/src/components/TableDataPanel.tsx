@@ -30,7 +30,7 @@ import {
 import TableSearch, { type SearchCondition } from './TableSearch';
 
 const PAGE_SIZE_OPTIONS = ['20', '50', '100'];
-const TABLE_HEADER_HEIGHT = 40;
+const TABLE_HEADER_HEIGHT = 34;
 const MIN_TABLE_BODY_HEIGHT = 160;
 const DEFAULT_COLUMN_WIDTH = 180;
 const ACTION_COLUMN_WIDTH = 70;
@@ -84,6 +84,10 @@ function getColumnWidth(col: { name: string; type?: string }) {
   return DEFAULT_COLUMN_WIDTH;
 }
 
+function getRowKey(row: Record<string, any>) {
+  return row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row);
+}
+
 interface EditableCellProps {
   value: unknown;
   editable: boolean;
@@ -134,7 +138,8 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
   return (
     <div
       style={{
-        minHeight: 22,
+        minHeight: 20,
+        lineHeight: '20px',
         width: '100%',
         cursor: editable ? 'text' : 'default',
         overflow: 'hidden',
@@ -182,6 +187,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
   const [addOpen, setAddOpen] = useState(false);
   const [tableScrollY, setTableScrollY] = useState(MIN_TABLE_BODY_HEIGHT);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const tableViewportRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<TableRef>(null);
 
@@ -338,9 +344,9 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
             background: TABLE_HEADER_BACKGROUND,
           },
         }),
-        onCell: () => ({
+        onCell: (row: Record<string, any>) => ({
           style: {
-            background: TABLE_BACKGROUND,
+            background: hoveredRowKey === getRowKey(row) ? TABLE_HOVER_BACKGROUND : TABLE_BACKGROUND,
           },
         }),
         render: (_: unknown, row: Record<string, any>) => (
@@ -357,7 +363,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
       });
     }
     return dataCols;
-  }, [schema, tableName, columnWidths, sort, canEdit, resizeColumn]);
+  }, [schema, tableName, columnWidths, sort, canEdit, resizeColumn, hoveredRowKey]);
 
   const tableComponents = useMemo(
     () => ({
@@ -383,7 +389,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
     <div style={{ padding: 12, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Space style={{ marginBottom: 12 }} wrap>
         <Button
-          type="primary"
+          type="dashed"
           icon={<PlusOutlined />}
           disabled={!canEdit}
           onClick={() => setAddOpen(true)}
@@ -424,6 +430,10 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
                   rowSelectedHoverBg: 'var(--sqlite-table-selected-hover-background)',
                   borderColor: TABLE_BORDER,
                   headerSplitColor: TABLE_BORDER,
+                  cellPaddingBlockSM: 5,
+                  cellPaddingInlineSM: 8,
+                  stickyScrollBarBg: 'var(--sqlite-scrollbar-background)',
+                  stickyScrollBarBorderRadius: 0,
                 },
               },
             }}
@@ -437,9 +447,12 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
                 root: { background: TABLE_BACKGROUND },
                 content: { background: TABLE_BACKGROUND },
               }}
-              rowKey={(row) =>
-                row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row)
-              }
+              classNames={{ root: 'sqlite-data-table' }}
+              rowKey={getRowKey}
+              onRow={(row) => ({
+                onMouseEnter: () => setHoveredRowKey(getRowKey(row)),
+                onMouseLeave: () => setHoveredRowKey(null),
+              })}
               components={tableComponents}
               columns={columns}
               dataSource={result?.data ?? []}
