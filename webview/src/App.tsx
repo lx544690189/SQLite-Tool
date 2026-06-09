@@ -228,6 +228,10 @@ export default function App() {
   const [settings, setSettings] = useState<UserSettings>(readSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setView] = useState<View>('data');
+  const [visitedViews, setVisitedViews] = useState<Record<View, boolean>>({
+    data: true,
+    sql: false,
+  });
 
   const dark = settings.themeMode === 'auto' ? vscodeDark : settings.themeMode === 'dark';
   const themeVars = useMemo(() => getSqliteThemeVars(dark), [dark]);
@@ -243,6 +247,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    setVisitedViews((prev) => (prev[view] ? prev : { ...prev, [view]: true }));
+  }, [view]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -370,15 +378,28 @@ export default function App() {
                     />
                   </Tooltip>
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  {view === 'data' ? (
+                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      display: view === 'data' ? 'block' : 'none',
+                    }}
+                  >
                     <TableDataPanel defaultPageSize={settings.defaultPageSize} />
-                  ) : (
-                    <SqlExecutor
-                      dark={dark}
-                      defaultPageSize={settings.defaultPageSize}
-                      editorFontSize={settings.sqlEditorFontSize}
-                    />
+                  </div>
+                  {visitedViews.sql && (
+                    <div
+                      style={{
+                        height: '100%',
+                        display: view === 'sql' ? 'block' : 'none',
+                      }}
+                    >
+                      <SqlExecutor
+                        dark={dark}
+                        defaultPageSize={settings.defaultPageSize}
+                        editorFontSize={settings.sqlEditorFontSize}
+                      />
+                    </div>
                   )}
                 </div>
               </>
