@@ -68,9 +68,9 @@ export default function Sidebar() {
                     display: 'flex',
                     alignItems: 'center',
                     borderLeft: active
-                      ? '2px solid var(--vscode-focusBorder, var(--vscode-button-background, #3794ff))'
+                      ? '2px solid var(--sqlite-focus-border)'
                       : '2px solid transparent',
-                    background: active ? 'rgba(127, 127, 127, 0.16)' : 'transparent',
+                    background: active ? 'var(--sqlite-active-background)' : 'transparent',
                   }}
                 >
                   <button
@@ -86,7 +86,8 @@ export default function Sidebar() {
                       padding: '6px 4px 6px 10px',
                       textAlign: 'left',
                       background: 'transparent',
-                      color: 'var(--vscode-foreground, inherit)',
+                      color: 'var(--sqlite-foreground)',
+                      fontSize: 12,
                       overflow: 'hidden',
                     }}
                   >
@@ -98,7 +99,14 @@ export default function Sidebar() {
                       count={t.rowCount}
                       overflowCount={99999}
                       showZero
-                      style={{ backgroundColor: 'var(--vscode-badge-background, #888)' }}
+                      style={{
+                        minWidth: 28,
+                        height: 18,
+                        padding: '0 7px',
+                        fontSize: 12,
+                        lineHeight: '18px',
+                        backgroundColor: 'var(--sqlite-badge-background)',
+                      }}
                     />
                   </button>
                   <Dropdown
@@ -150,7 +158,7 @@ export default function Sidebar() {
             margin: 0,
             padding: 12,
             borderRadius: 4,
-            background: 'var(--vscode-textCodeBlock-background, rgba(128,128,128,.1))',
+            background: 'var(--sqlite-code-background)',
             overflowX: 'auto',
             fontSize: 12,
           }}

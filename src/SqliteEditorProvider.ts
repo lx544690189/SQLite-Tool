@@ -143,6 +143,10 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
           respond(true, { size: stat.size, modified: stat.mtime });
           break;
         }
+        case 'getDocumentUri': {
+          respond(true, document.uri.toString());
+          break;
+        }
         case 'openFileLocation': {
           await vscode.commands.executeCommand('revealFileInOS', document.uri);
           respond(true);

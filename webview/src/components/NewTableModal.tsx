@@ -407,7 +407,7 @@ export default function NewTableModal({ open, onClose }: Props) {
               margin: '4px 0 0',
               padding: 12,
               borderRadius: 4,
-              background: 'var(--vscode-textCodeBlock-background, rgba(128,128,128,.1))',
+              background: 'var(--sqlite-code-background)',
               overflowX: 'auto',
               fontSize: 12,
             }}

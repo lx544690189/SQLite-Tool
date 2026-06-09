@@ -10,7 +10,7 @@ body,
 body {
   overflow: hidden;
   box-sizing: border-box;
-  color: var(--vscode-foreground);
+  color: var(--sqlite-foreground, var(--vscode-foreground));
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
 }
@@ -27,11 +27,11 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4));
+  background: var(--sqlite-scrollbar-background, var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4)));
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6));
+  background: var(--sqlite-scrollbar-hover-background, var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6)));
 }
 
 .sqlite-resizable-header-cell {
@@ -61,11 +61,53 @@ body {
 
 .sqlite-column-resize-handle:hover::after,
 .sqlite-column-resizing .sqlite-column-resize-handle::after {
-  background: var(--vscode-focusBorder, #007fd4);
+  background: var(--sqlite-focus-border, var(--vscode-focusBorder, #007fd4));
 }
 
 .sqlite-column-resizing,
 .sqlite-column-resizing * {
   cursor: col-resize !important;
   user-select: none !important;
+}
+
+.sqlite-tag {
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.sqlite-tag-null {
+  color: var(--sqlite-tag-default-foreground);
+  background: var(--sqlite-tag-default-background);
+  border-color: var(--sqlite-tag-default-border);
+}
+
+.sqlite-tag-pk {
+  color: var(--sqlite-tag-gold-foreground);
+  background: var(--sqlite-tag-gold-background);
+  border-color: var(--sqlite-tag-gold-border);
+}
+
+.sqlite-tag-required {
+  color: var(--sqlite-tag-red-foreground);
+  background: var(--sqlite-tag-red-background);
+  border-color: var(--sqlite-tag-red-border);
+}
+
+.sqlite-tag-warning {
+  color: var(--sqlite-tag-warning-foreground);
+  background: var(--sqlite-tag-warning-background);
+  border-color: var(--sqlite-tag-warning-border);
+}
+
+.sqlite-tag-info {
+  color: var(--sqlite-tag-info-foreground);
+  background: var(--sqlite-tag-info-background);
+  border-color: var(--sqlite-tag-info-border);
+}
+
+.sqlite-tag-changed {
+  color: var(--sqlite-tag-changed-foreground);
+  background: var(--sqlite-tag-changed-background);
+  border-color: var(--sqlite-tag-changed-border);
 }

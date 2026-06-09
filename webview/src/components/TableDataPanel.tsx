@@ -35,12 +35,12 @@ const MIN_TABLE_BODY_HEIGHT = 160;
 const DEFAULT_COLUMN_WIDTH = 180;
 const ACTION_COLUMN_WIDTH = 70;
 const MIN_TABLE_WIDTH = 720;
-const TABLE_BACKGROUND = 'var(--vscode-editor-background, #1e1e1e)';
-const TABLE_HEADER_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 88%, var(--vscode-foreground, #ffffff) 12%)';
-const TABLE_HOVER_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 84%, var(--vscode-foreground, #ffffff) 16%)';
-const TABLE_SORT_BACKGROUND = 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 90%, var(--vscode-foreground, #ffffff) 10%)';
-const TABLE_BORDER = 'var(--vscode-panel-border, rgba(128, 128, 128, 0.28))';
-const TABLE_FIXED_SHADOW = 'rgba(0, 0, 0, 0.34)';
+const TABLE_BACKGROUND = 'var(--sqlite-editor-background)';
+const TABLE_HEADER_BACKGROUND = 'var(--sqlite-table-header-background)';
+const TABLE_HOVER_BACKGROUND = 'var(--sqlite-table-hover-background)';
+const TABLE_SORT_BACKGROUND = 'var(--sqlite-table-sort-background)';
+const TABLE_BORDER = 'var(--sqlite-border)';
+const TABLE_FIXED_SHADOW = 'var(--sqlite-table-fixed-shadow)';
 
 interface SortState {
   field?: string;
@@ -49,7 +49,7 @@ interface SortState {
 
 function renderCell(value: unknown) {
   if (value === null || value === undefined) {
-    return <Tag style={{ opacity: 0.6 }}>NULL</Tag>;
+    return <Tag className="sqlite-tag sqlite-tag-null">NULL</Tag>;
   }
   if (typeof value === 'object') {
     return <span style={{ opacity: 0.7 }}>[BLOB]</span>;
@@ -79,7 +79,7 @@ function getColumnWidth(col: { name: string; type?: string }) {
     return 140;
   }
   if (name.includes('json') || name.includes('payload') || name.includes('message') || type.includes('TEXT')) {
-    return 280;
+    return 200;
   }
   return DEFAULT_COLUMN_WIDTH;
 }
@@ -162,13 +162,17 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
   );
 }
 
-export default function TableDataPanel() {
+interface TableDataPanelProps {
+  defaultPageSize: number;
+}
+
+export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps) {
   const snap = useSnapshot(dbState);
   const tableName = snap.activeTable;
   const version = snap.version;
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [sort, setSort] = useState<SortState>({});
   const [search, setSearch] = useState<SearchCondition>({ column: null, keyword: '' });
   const [result, setResult] = useState<PageResult | null>(null);
@@ -192,6 +196,11 @@ export default function TableDataPanel() {
     setSort({});
     setSearch({ column: null, keyword: '' });
   }, [tableName]);
+
+  useEffect(() => {
+    setPage(1);
+    setPageSize(defaultPageSize);
+  }, [defaultPageSize]);
 
   useEffect(() => {
     if (!tableName) {
@@ -292,7 +301,7 @@ export default function TableDataPanel() {
         title: (
           <span>
             {col.name}
-            {col.pk > 0 && <Tag color="gold" style={{ marginLeft: 4 }}>PK</Tag>}
+            {col.pk > 0 && <Tag className="sqlite-tag sqlite-tag-pk" style={{ marginLeft: 4 }}>PK</Tag>}
             <span style={{ marginLeft: 4, opacity: 0.5, fontWeight: 400, fontSize: 12 }}>{col.type}</span>
           </span>
         ),
@@ -392,7 +401,7 @@ export default function TableDataPanel() {
           }}
         />
         {!canEdit && (
-          <Tag color="warning">该表无主键且不支持 rowid，仅可浏览</Tag>
+          <Tag className="sqlite-tag sqlite-tag-warning">该表无主键且不支持 rowid，仅可浏览</Tag>
         )}
       </Space>
       {error && <Alert type="error" title={error} showIcon style={{ marginBottom: 12 }} />}
@@ -412,7 +421,7 @@ export default function TableDataPanel() {
                   bodySortBg: TABLE_SORT_BACKGROUND,
                   rowHoverBg: TABLE_HOVER_BACKGROUND,
                   rowSelectedBg: TABLE_HOVER_BACKGROUND,
-                  rowSelectedHoverBg: 'color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 80%, var(--vscode-foreground, #ffffff) 20%)',
+                  rowSelectedHoverBg: 'var(--sqlite-table-selected-hover-background)',
                   borderColor: TABLE_BORDER,
                   headerSplitColor: TABLE_BORDER,
                 },

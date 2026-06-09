@@ -24,7 +24,13 @@ interface ResultState {
   empty: boolean;
 }
 
-export default function SqlExecutor({ dark }: { dark: boolean }) {
+interface SqlExecutorProps {
+  dark: boolean;
+  defaultPageSize: number;
+  editorFontSize: number;
+}
+
+export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: SqlExecutorProps) {
   const snap = useSnapshot(dbState);
   const sqlSnap = useSnapshot(sqlState);
   const [sql, setSql] = useState('SELECT * FROM sqlite_master WHERE type = \'table\';');
@@ -98,7 +104,7 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
             onColumnResize: (nextWidth: number) => resizeColumn(c, nextWidth),
           }) as ResizableHeaderCellProps,
           render: (v: unknown) =>
-            v === null || v === undefined ? <Tag style={{ opacity: 0.6 }}>NULL</Tag> : String(v),
+            v === null || v === undefined ? <Tag className="sqlite-tag sqlite-tag-null">NULL</Tag> : String(v),
         };
       }) ?? [],
     [columnWidths, resizeColumn, result?.columns],
@@ -164,7 +170,7 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
         </Dropdown>
       </Space>
 
-      <div style={{ border: '1px solid var(--vscode-panel-border, rgba(128,128,128,.3))', height: 200 }}>
+      <div style={{ border: '1px solid var(--sqlite-border)', height: 200 }}>
         <Editor
           height="200px"
           language="sql"
@@ -173,7 +179,7 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
           onChange={(v) => setSql(v ?? '')}
           options={{
             minimap: { enabled: false },
-            fontSize: 13,
+            fontSize: editorFontSize,
             scrollBeyondLastLine: false,
             automaticLayout: true,
           }}
@@ -199,10 +205,13 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
         ) : result ? (
           <>
             <Space style={{ marginBottom: 8 }}>
-              <Tag color="blue">{result.rows.length} 行</Tag>
-              {result.changed && <Tag color="orange">影响 {result.rowsModified} 行</Tag>}
+              <Tag className="sqlite-tag sqlite-tag-info">{result.rows.length} 行</Tag>
+              {result.changed && (
+                <Tag className="sqlite-tag sqlite-tag-changed">影响 {result.rowsModified} 行</Tag>
+              )}
             </Space>
             <Table
+              key={`sql-result-${defaultPageSize}`}
               size="small"
               rowKey={(_, i) => String(i)}
               tableLayout="fixed"
@@ -215,7 +224,7 @@ export default function SqlExecutor({ dark }: { dark: boolean }) {
               columns={resultColumns}
               scroll={{ x: tableScrollX }}
               pagination={{
-                defaultPageSize: 20,
+                defaultPageSize,
                 showSizeChanger: true,
                 pageSizeOptions: PAGE_SIZE_OPTIONS,
                 showTotal: (total) => `共 ${total} 行`,

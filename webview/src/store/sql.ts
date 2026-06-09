@@ -11,19 +11,77 @@ interface SqlState {
 }
 
 const MAX_HISTORY = 50;
+const HISTORY_STORAGE_PREFIX = 'sqlite-manager-sql-history:';
 
 export const sqlState = proxy<SqlState>({ history: [] });
 
 interface PersistedSettings {
   sqlHistory?: HistoryItem[];
+  [key: string]: unknown;
 }
 
-/** 从 globalState 载入历史 */
+let historyStorageKey: string | null = null;
+
+function normalizeHistory(value: unknown): HistoryItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is HistoryItem => {
+      return (
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as HistoryItem).sql === 'string' &&
+        typeof (item as HistoryItem).at === 'number'
+      );
+    })
+    .slice(0, MAX_HISTORY);
+}
+
+function getHistoryStorageKey(documentUri: string): string {
+  return `${HISTORY_STORAGE_PREFIX}${documentUri}`;
+}
+
+function readLocalHistory(key: string): HistoryItem[] | null {
+  const raw = localStorage.getItem(key);
+  if (raw === null) {
+    return null;
+  }
+  try {
+    return normalizeHistory(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalHistory(history: HistoryItem[]): void {
+  if (!historyStorageKey) {
+    return;
+  }
+  localStorage.setItem(historyStorageKey, JSON.stringify(normalizeHistory(history)));
+}
+
+/** 载入当前数据库文件关联的 SQL 执行历史 */
 export async function loadHistory(): Promise<void> {
   try {
-    const settings = await bridge.getSettings<PersistedSettings>();
-    if (Array.isArray(settings?.sqlHistory)) {
-      sqlState.history = settings.sqlHistory;
+    const documentUri = await bridge.getDocumentUri();
+    historyStorageKey = getHistoryStorageKey(documentUri);
+
+    const localHistory = readLocalHistory(historyStorageKey);
+    if (localHistory !== null) {
+      sqlState.history = localHistory;
+      return;
+    }
+
+    const legacySettings = await bridge.getSettings<PersistedSettings>();
+    const legacyHistory = normalizeHistory(legacySettings?.sqlHistory);
+    if (legacyHistory.length > 0) {
+      sqlState.history = legacyHistory;
+      saveLocalHistory(legacyHistory);
+      const { sqlHistory: _sqlHistory, ...settingsWithoutHistory } = legacySettings ?? {};
+      await bridge.saveSettings(settingsWithoutHistory);
+    } else {
+      sqlState.history = [];
     }
   } catch {
     // 忽略：无历史不影响使用
@@ -32,8 +90,7 @@ export async function loadHistory(): Promise<void> {
 
 async function persist(): Promise<void> {
   try {
-    const settings = await bridge.getSettings<PersistedSettings>();
-    await bridge.saveSettings({ ...settings, sqlHistory: sqlState.history });
+    saveLocalHistory(sqlState.history);
   } catch {
     // 忽略持久化失败
   }

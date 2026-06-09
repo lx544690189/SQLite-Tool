@@ -127,6 +127,10 @@ export const bridge = {
   getFileInfo(): Promise<{ size: number; modified: number }> {
     return request('getFileInfo');
   },
+  /** 当前数据库文档 URI */
+  getDocumentUri(): Promise<string> {
+    return request<string>('getDocumentUri');
+  },
   /** 在资源管理器中定位文件 */
   openFileLocation(): Promise<void> {
     return request<void>('openFileLocation');

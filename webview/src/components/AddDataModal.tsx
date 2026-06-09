@@ -49,10 +49,20 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
       onCancel={handleCancel}
       okText="插入"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       width={520}
+      styles={{
+        content: { background: 'var(--sqlite-editor-background)' },
+        header: { background: 'var(--sqlite-editor-background)' },
+        body: { background: 'var(--sqlite-editor-background)' },
+        footer: { background: 'var(--sqlite-editor-background)' },
+      }}
     >
-      <Form form={form} layout="vertical" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+      <Form
+        form={form}
+        layout="vertical"
+        style={{ maxHeight: '60vh', overflowY: 'auto', color: 'var(--sqlite-foreground)' }}
+      >
         {editableCols.map((col) => {
           const numeric = isNumeric(col.type);
           const isNull = nullFields[col.name];
@@ -64,8 +74,8 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
                 <span style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
                   <span>{col.name}</span>
                   <span style={{ opacity: 0.5, fontSize: 12 }}>{col.type}</span>
-                  {col.pk > 0 && <Tag color="gold">PK</Tag>}
-                  {col.notnull === 1 && <Tag color="red">NOT NULL</Tag>}
+                  {col.pk > 0 && <Tag className="sqlite-tag sqlite-tag-pk">PK</Tag>}
+                  {col.notnull === 1 && <Tag className="sqlite-tag sqlite-tag-required">NOT NULL</Tag>}
                   <span style={{ flex: 1 }} />
                   <Tooltip title="设为 NULL">
                     <Checkbox
