@@ -132,7 +132,10 @@ body {
 }
 
 .sqlite-tag-pk {
+  padding: 0 5px;
   color: var(--sqlite-tag-gold-foreground);
+  font-size: 10px;
+  line-height: 14px;
   background: var(--sqlite-tag-gold-background);
   border-color: var(--sqlite-tag-gold-border);
 }

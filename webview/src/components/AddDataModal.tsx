@@ -51,12 +51,6 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
       cancelText="取消"
       destroyOnHidden
       width={520}
-      styles={{
-        root: { background: 'var(--sqlite-editor-background)' },
-        header: { background: 'var(--sqlite-editor-background)' },
-        body: { background: 'var(--sqlite-editor-background)' },
-        footer: { background: 'var(--sqlite-editor-background)' },
-      }}
     >
       <Form
         form={form}

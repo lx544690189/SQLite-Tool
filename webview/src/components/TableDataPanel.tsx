@@ -558,6 +558,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
               size="small"
               loading={loading}
               tableLayout="fixed"
+              showSorterTooltip={false}
               styles={{
                 root: { background: TABLE_BACKGROUND },
                 content: { background: TABLE_BACKGROUND },

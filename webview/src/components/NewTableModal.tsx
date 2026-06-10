@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Checkbox, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Button, Checkbox, ConfigProvider, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { helper, refreshTables, dbState } from '../store/db';
 
@@ -389,14 +389,38 @@ export default function NewTableModal({ open, onClose }: Props) {
             onChange={(e) => setTableName(e.target.value)}
           />
         </Space.Compact>
-        <Table
-          size="small"
-          rowKey="key"
-          pagination={false}
-          dataSource={cols}
-          columns={columns as any}
-          scroll={{ x: 'max-content' }}
-        />
+        <ConfigProvider
+          theme={{
+            token: {
+              colorBgContainer: 'var(--sqlite-modal-background)',
+              colorSplit: 'var(--sqlite-border)',
+            },
+            components: {
+              Table: {
+                headerBg: 'var(--sqlite-modal-table-header-background)',
+                headerColor: 'var(--sqlite-foreground)',
+                headerSplitColor: 'var(--sqlite-border)',
+                borderColor: 'var(--sqlite-border)',
+                rowHoverBg: 'var(--sqlite-table-hover-background)',
+                cellPaddingBlockSM: 6,
+                cellPaddingInlineSM: 8,
+              },
+            },
+          }}
+        >
+          <Table
+            size="small"
+            rowKey="key"
+            pagination={false}
+            dataSource={cols}
+            columns={columns as any}
+            scroll={{ x: 'max-content' }}
+            styles={{
+              root: { background: 'var(--sqlite-modal-background)' },
+              content: { background: 'var(--sqlite-modal-background)' },
+            }}
+          />
+        </ConfigProvider>
         <Button icon={<PlusOutlined />} onClick={() => setCols((prev) => [...prev, newCol()])}>
           添加字段
         </Button>

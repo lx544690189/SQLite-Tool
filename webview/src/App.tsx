@@ -23,6 +23,7 @@ import {
   SettingOutlined,
   TableOutlined,
 } from '@ant-design/icons';
+import zhCN from 'antd/locale/zh_CN';
 import { useSnapshot } from 'valtio';
 import { bootstrap, dbState } from './store/db';
 import Sidebar from './components/Sidebar';
@@ -93,6 +94,9 @@ function getSqliteThemeVars(dark: boolean): SqliteThemeVars {
       '--sqlite-input-foreground': 'var(--vscode-input-foreground, #cccccc)',
       '--sqlite-segmented-selected-background': 'rgba(47, 125, 204, 0.18)',
       '--sqlite-mask-background': 'rgba(0, 0, 0, 0.45)',
+      '--sqlite-modal-background': 'color-mix(in srgb, var(--sqlite-editor-background) 94%, var(--sqlite-foreground) 6%)',
+      '--sqlite-modal-border': 'rgba(255, 255, 255, 0.12)',
+      '--sqlite-modal-shadow': '0 18px 56px rgba(0, 0, 0, 0.46)',
       '--sqlite-fill-secondary': 'rgba(255, 255, 255, 0.08)',
       '--sqlite-disabled-background': 'rgba(255, 255, 255, 0.08)',
       '--sqlite-disabled-foreground': 'rgba(255, 255, 255, 0.35)',
@@ -117,6 +121,7 @@ function getSqliteThemeVars(dark: boolean): SqliteThemeVars {
       '--sqlite-scrollbar-background': 'var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4))',
       '--sqlite-scrollbar-hover-background': 'var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6))',
       '--sqlite-table-header-background': 'color-mix(in srgb, var(--sqlite-editor-background) 88%, var(--sqlite-foreground) 12%)',
+      '--sqlite-modal-table-header-background': 'color-mix(in srgb, var(--sqlite-editor-background) 80%, var(--sqlite-foreground) 20%)',
       '--sqlite-table-hover-background': 'color-mix(in srgb, var(--sqlite-editor-background) 84%, var(--sqlite-foreground) 16%)',
       '--sqlite-table-sort-background': 'color-mix(in srgb, var(--sqlite-editor-background) 90%, var(--sqlite-foreground) 10%)',
       '--sqlite-table-selected-hover-background': 'color-mix(in srgb, var(--sqlite-editor-background) 80%, var(--sqlite-foreground) 20%)',
@@ -138,6 +143,9 @@ function getSqliteThemeVars(dark: boolean): SqliteThemeVars {
     '--sqlite-input-foreground': '#1f2328',
     '--sqlite-segmented-selected-background': 'rgba(9, 105, 218, 0.1)',
     '--sqlite-mask-background': 'rgba(31, 35, 40, 0.42)',
+    '--sqlite-modal-background': '#ffffff',
+    '--sqlite-modal-border': 'rgba(31, 35, 40, 0.12)',
+    '--sqlite-modal-shadow': '0 18px 52px rgba(31, 35, 40, 0.18)',
     '--sqlite-fill-secondary': 'rgba(31, 35, 40, 0.06)',
     '--sqlite-disabled-background': '#f6f8fa',
     '--sqlite-disabled-foreground': '#8c959f',
@@ -162,6 +170,7 @@ function getSqliteThemeVars(dark: boolean): SqliteThemeVars {
     '--sqlite-scrollbar-background': 'rgba(31, 35, 40, 0.22)',
     '--sqlite-scrollbar-hover-background': 'rgba(31, 35, 40, 0.34)',
     '--sqlite-table-header-background': '#f6f8fa',
+    '--sqlite-modal-table-header-background': '#eef2f6',
     '--sqlite-table-hover-background': '#f1f5f9',
     '--sqlite-table-sort-background': '#eef4ff',
     '--sqlite-table-selected-hover-background': '#e7f0ff',
@@ -330,6 +339,21 @@ export default function App() {
     <ConfigProvider
       key={dark ? 'sqlite-dark' : 'sqlite-light'}
       componentSize="small"
+      locale={zhCN}
+      modal={{
+        mask: { blur: true },
+        styles: {
+          mask: { background: 'var(--sqlite-mask-background)' },
+          container: {
+            background: 'var(--sqlite-modal-background)',
+            border: '1px solid var(--sqlite-modal-border)',
+            boxShadow: 'var(--sqlite-modal-shadow)',
+          },
+          header: { background: 'var(--sqlite-modal-background)' },
+          body: { background: 'var(--sqlite-modal-background)' },
+          footer: { background: 'var(--sqlite-modal-background)' },
+        },
+      }}
       theme={{
         algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
@@ -508,11 +532,6 @@ export default function App() {
           width={420}
           destroyOnHidden
           onCancel={() => setSettingsOpen(false)}
-          styles={{
-            root: { background: 'var(--sqlite-editor-background)' },
-            header: { background: 'var(--sqlite-editor-background)' },
-            body: { background: 'var(--sqlite-editor-background)' },
-          }}
         >
           <Form layout="vertical" style={{ marginTop: 4 }}>
             <Form.Item label="主题模式">
@@ -532,7 +551,7 @@ export default function App() {
                 onChange={(defaultPageSize) => updateSettings({ defaultPageSize })}
                 options={PAGE_SIZE_OPTIONS.map((value) => ({
                   value,
-                  label: `${value} / page`,
+                  label: `${value} 条/页`,
                 }))}
               />
             </Form.Item>
