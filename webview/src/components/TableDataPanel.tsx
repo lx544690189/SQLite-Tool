@@ -14,12 +14,19 @@ import {
   Tooltip,
   message,
 } from 'antd';
-import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  CheckOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { SorterResult } from 'antd/es/table/interface';
 import type { TableRef } from 'antd/es/table';
 import { useSnapshot } from 'valtio';
-import { addRow, dbState, editCell, helper, removeRow } from '../store/db';
+import { addRow, dbState, editRow, helper, removeRow } from '../store/db';
 import { ROWID_ALIAS, type PageResult } from '../utils/SQLiteHelper';
 import AddDataModal from './AddDataModal';
 import {
@@ -33,7 +40,7 @@ const PAGE_SIZE_OPTIONS = ['20', '50', '100'];
 const TABLE_HEADER_HEIGHT = 34;
 const MIN_TABLE_BODY_HEIGHT = 160;
 const DEFAULT_COLUMN_WIDTH = 180;
-const ACTION_COLUMN_WIDTH = 70;
+const ACTION_COLUMN_WIDTH = 104;
 const MIN_TABLE_WIDTH = 720;
 const TABLE_BACKGROUND = 'var(--sqlite-editor-background)';
 const TABLE_HEADER_BACKGROUND = 'var(--sqlite-table-header-background)';
@@ -59,10 +66,10 @@ function renderCell(value: unknown) {
 
 function getCellTitle(value: unknown, editable: boolean): string | undefined {
   if (value === null || value === undefined) {
-    return editable ? '双击编辑' : undefined;
+    return editable ? '编辑中' : undefined;
   }
   const text = typeof value === 'object' ? '[BLOB]' : String(value);
-  return editable ? `${text}\n双击编辑` : text;
+  return editable ? `${text}\n编辑中` : text;
 }
 
 function getColumnWidth(col: { name: string; type?: string }) {
@@ -88,37 +95,61 @@ function getRowKey(row: Record<string, any>) {
   return row[ROWID_ALIAS] !== undefined ? `r${row[ROWID_ALIAS]}` : JSON.stringify(row);
 }
 
+type CellDraftValue = string | number | null;
+
+function isNumericType(type: string): boolean {
+  return ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE'].includes((type || '').toUpperCase());
+}
+
+function normalizeDraftValue(schema: any[], column: string, raw: CellDraftValue): any {
+  const colType = (schema.find((c) => c.name === column)?.type || '').toUpperCase();
+  const numeric = isNumericType(colType);
+  return raw === '' || raw === null ? null : numeric ? Number(raw) : String(raw);
+}
+
+function isSameCellValue(current: unknown, next: unknown): boolean {
+  return (current ?? null) === (next ?? null);
+}
+
+function getDraftValue(value: unknown, type: string): CellDraftValue {
+  if (isNumericType(type)) {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const numericValue = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return typeof value === 'object' ? String(value) : String(value);
+}
+
+function getDraftColumnValue(
+  draft: Record<string, CellDraftValue>,
+  column: string,
+  fallback: CellDraftValue,
+): CellDraftValue {
+  return Object.prototype.hasOwnProperty.call(draft, column) ? draft[column] : fallback;
+}
+
 interface EditableCellProps {
   value: unknown;
   editable: boolean;
   numeric: boolean;
-  onCommit: (newValue: string | number | null) => void;
+  draftValue: CellDraftValue;
+  onDraftChange: (newValue: CellDraftValue) => void;
 }
 
-function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [numericDraft, setNumericDraft] = useState<number | null>(null);
-  const committedRef = useRef(false);
-
-  const finishEdit = (nextValue: string | number | null) => {
-    if (committedRef.current) return;
-    committedRef.current = true;
-    setEditing(false);
-    onCommit(nextValue);
-  };
-
-  if (editing) {
+function EditableCell({ value, editable, numeric, draftValue, onDraftChange }: EditableCellProps) {
+  if (editable) {
     if (numeric) {
       return (
         <InputNumber
           size="small"
-          autoFocus
           style={{ width: '100%' }}
-          value={numericDraft}
-          onChange={(nextValue) => setNumericDraft(typeof nextValue === 'number' ? nextValue : null)}
-          onBlur={() => finishEdit(numericDraft)}
-          onPressEnter={() => finishEdit(numericDraft)}
+          value={typeof draftValue === 'number' ? draftValue : null}
+          onChange={(nextValue) => onDraftChange(typeof nextValue === 'number' ? nextValue : null)}
         />
       );
     }
@@ -126,11 +157,8 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
     return (
       <Input
         size="small"
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => finishEdit(draft)}
-        onPressEnter={(e) => finishEdit((e.target as HTMLInputElement).value)}
+        value={draftValue === null || draftValue === undefined ? '' : String(draftValue)}
+        onChange={(e) => onDraftChange(e.target.value)}
       />
     );
   }
@@ -141,24 +169,10 @@ function EditableCell({ value, editable, numeric, onCommit }: EditableCellProps)
         minHeight: 20,
         lineHeight: '20px',
         width: '100%',
-        cursor: editable ? 'text' : 'default',
+        cursor: 'default',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-      }}
-      onDoubleClick={() => {
-        if (editable) {
-          committedRef.current = false;
-          setDraft(value === null || value === undefined ? '' : String(value));
-          setNumericDraft(
-            value === null || value === undefined || value === ''
-              ? null
-              : typeof value === 'number'
-                ? value
-                : Number(value),
-          );
-          setEditing(true);
-        }
       }}
       title={getCellTitle(value, editable)}
     >
@@ -188,6 +202,8 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
   const [tableScrollY, setTableScrollY] = useState(MIN_TABLE_BODY_HEIGHT);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
+  const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState<Record<string, CellDraftValue>>({});
   const tableViewportRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<TableRef>(null);
 
@@ -197,16 +213,43 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
     tableRef.current?.scrollTo({ top: 0 });
   };
 
+  const clearEditing = useCallback(() => {
+    setEditingRowKey(null);
+    setEditingDraft({});
+  }, []);
+
+  const startEdit = useCallback(
+    (row: Record<string, any>) => {
+      const draft: Record<string, CellDraftValue> = {};
+      schema.forEach((col) => {
+        draft[col.name] = getDraftValue(row[col.name], col.type);
+      });
+      setEditingRowKey(getRowKey(row));
+      setEditingDraft(draft);
+    },
+    [schema],
+  );
+
+  const updateDraft = useCallback((column: string, value: CellDraftValue) => {
+    setEditingDraft((prev) => ({ ...prev, [column]: value }));
+  }, []);
+
   useEffect(() => {
     setPage(1);
     setSort({});
     setSearch({ column: null, keyword: '' });
-  }, [tableName]);
+    clearEditing();
+  }, [tableName, clearEditing]);
+
+  useEffect(() => {
+    clearEditing();
+  }, [page, pageSize, sort, search, version, clearEditing]);
 
   useEffect(() => {
     setPage(1);
     setPageSize(defaultPageSize);
-  }, [defaultPageSize]);
+    clearEditing();
+  }, [defaultPageSize, clearEditing]);
 
   useEffect(() => {
     if (!tableName) {
@@ -250,20 +293,31 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
     return () => observer.disconnect();
   }, [tableName, error]);
 
-  const commitEdit = (row: Record<string, any>, column: string, raw: string | number | null) => {
+  const confirmEdit = useCallback((row: Record<string, any>) => {
     if (!tableName) return;
     try {
-      const colType = (schema.find((c) => c.name === column)?.type || '').toUpperCase();
-      const numeric = ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE'].includes(colType);
-      const value = raw === '' || raw === null ? null : numeric ? Number(raw) : String(raw);
-      const current = row[column];
-      if ((current ?? null) === (value ?? null)) return; // 未变更
-      editCell(tableName, row, column, value, schema);
+      const changes: Record<string, any> = {};
+      for (const col of schema) {
+        const raw = getDraftColumnValue(editingDraft, col.name, getDraftValue(row[col.name], col.type));
+        const value = normalizeDraftValue(schema, col.name, raw);
+        if (isNumericType(col.type) && value !== null && !Number.isFinite(value)) {
+          throw new Error(`字段 "${col.name}" 请输入有效数字`);
+        }
+        if (!isSameCellValue(row[col.name], value)) {
+          changes[col.name] = value;
+        }
+      }
+      if (Object.keys(changes).length === 0) {
+        clearEditing();
+        return;
+      }
+      editRow(tableName, row, changes, schema);
+      clearEditing();
       message.success('已更新');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
-  };
+  }, [clearEditing, editingDraft, schema, tableName]);
 
   const handleDelete = (row: Record<string, any>) => {
     if (!tableName) return;
@@ -300,9 +354,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
       const width = tableName
         ? (columnWidths[getColumnWidthKey(tableName, col.name)] ?? getColumnWidth(col))
         : getColumnWidth(col);
-      const numeric = ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE'].includes(
-        (col.type || '').toUpperCase(),
-      );
+      const numeric = isNumericType(col.type);
       return {
         title: (
           <span>
@@ -322,14 +374,18 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
           resizable: true,
           onColumnResize: (nextWidth: number) => resizeColumn(col.name, nextWidth),
         }) as ResizableHeaderCellProps,
-        render: (value: unknown, row: Record<string, any>) => (
-          <EditableCell
-            value={value}
-            editable={canEdit}
-            numeric={numeric}
-            onCommit={(raw) => commitEdit(row, col.name, raw)}
-          />
-        ),
+        render: (value: unknown, row: Record<string, any>) => {
+          const isEditing = editingRowKey === getRowKey(row);
+          return (
+            <EditableCell
+              value={value}
+              editable={canEdit && isEditing}
+              numeric={numeric}
+              draftValue={getDraftColumnValue(editingDraft, col.name, getDraftValue(value, col.type))}
+              onDraftChange={(nextValue) => updateDraft(col.name, nextValue)}
+            />
+          );
+        },
       };
     });
 
@@ -349,21 +405,80 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
             background: hoveredRowKey === getRowKey(row) ? TABLE_HOVER_BACKGROUND : TABLE_BACKGROUND,
           },
         }),
-        render: (_: unknown, row: Record<string, any>) => (
-          <Popconfirm
-            title="确认删除该行？"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(row)}
-          >
-            <Button type="text" size="small" icon={<DeleteOutlined />} />
-          </Popconfirm>
-        ),
+        render: (_: unknown, row: Record<string, any>) => {
+          const rowKey = getRowKey(row);
+          const isEditing = editingRowKey === rowKey;
+          const hasOtherEditingRow = Boolean(editingRowKey && !isEditing);
+
+          if (isEditing) {
+            return (
+              <Space size={2}>
+                <Tooltip title="保存">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CheckOutlined />}
+                    onClick={() => confirmEdit(row)}
+                  />
+                </Tooltip>
+                <Tooltip title="取消">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CloseOutlined />}
+                    onClick={clearEditing}
+                  />
+                </Tooltip>
+              </Space>
+            );
+          }
+
+          return (
+            <Space size={2}>
+              <Tooltip title="编辑">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  disabled={hasOtherEditingRow}
+                  onClick={() => startEdit(row)}
+                />
+              </Tooltip>
+              <Popconfirm
+                title="确认删除该行？"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => handleDelete(row)}
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  disabled={hasOtherEditingRow}
+                />
+              </Popconfirm>
+            </Space>
+          );
+        },
       });
     }
     return dataCols;
-  }, [schema, tableName, columnWidths, sort, canEdit, resizeColumn, hoveredRowKey]);
+  }, [
+    schema,
+    tableName,
+    columnWidths,
+    sort,
+    canEdit,
+    resizeColumn,
+    hoveredRowKey,
+    editingRowKey,
+    editingDraft,
+    updateDraft,
+    confirmEdit,
+    clearEditing,
+    startEdit,
+  ]);
 
   const tableComponents = useMemo(
     () => ({

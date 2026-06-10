@@ -64,6 +64,16 @@ export function editCell(
   afterMutation();
 }
 
+export function editRow(
+  tableName: string,
+  row: Record<string, any>,
+  changes: Record<string, any>,
+  schema: any[],
+): void {
+  helper.updateRow(tableName, row, changes, schema);
+  afterMutation();
+}
+
 export function removeRow(tableName: string, row: Record<string, any>, schema: any[]): void {
   helper.deleteRow(tableName, row, schema);
   afterMutation();

@@ -363,6 +363,29 @@ class SQLiteHelper {
     this.save('编辑单元格');
   }
 
+  /** 更新某行的多个字段 */
+  updateRow(
+    tableName: string,
+    row: Record<string, any>,
+    changes: Record<string, any>,
+    schema: any[],
+  ): void {
+    this.ensureInitialized();
+    const entries = Object.entries(changes);
+    if (entries.length === 0) {
+      return;
+    }
+    const where = this.buildWhere(tableName, row, schema);
+    const assignments = entries
+      .map(([column, value]) => `"${column}" = ${this.formatValue(value, this.columnType(schema, column))}`)
+      .join(', ');
+    this.db!.run(`UPDATE "${tableName}" SET ${assignments} ${where}`);
+    if (this.db!.getRowsModified() === 0) {
+      throw new Error('未找到要更新的行，可能数据已被刷新或删除');
+    }
+    this.save('编辑行');
+  }
+
   /** 删除某行 */
   deleteRow(tableName: string, row: Record<string, any>, schema: any[]): void {
     this.ensureInitialized();
