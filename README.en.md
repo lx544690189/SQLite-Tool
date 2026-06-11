@@ -1,6 +1,6 @@
 # sqlite-tool
 
-[中文](README.zh-CN.md) | English | [Français](README.fr.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+[中文](README.zh-CN.md) | [English](README.md) | [Français](README.fr.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 sqlite-tool is a visual SQLite database tool for VS Code. Open a `.db`, `.sqlite`, or `.sqlite3` file to browse tables, inspect and edit data, create tables, and run SQL directly inside the editor.
 

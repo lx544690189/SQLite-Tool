@@ -10,13 +10,13 @@ function getNonce(): string {
 }
 
 function getDevServer(): URL | null {
-  const raw = process.env.SQLITE_MANAGER_WEBVIEW_DEV_SERVER?.trim();
+  const raw = process.env.SQLITE_TOOL_WEBVIEW_DEV_SERVER?.trim();
   if (!raw) {
     return null;
   }
   const url = new URL(raw);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('SQLITE_MANAGER_WEBVIEW_DEV_SERVER only supports http/https URLs');
+    throw new Error('SQLITE_TOOL_WEBVIEW_DEV_SERVER only supports http/https URLs');
   }
   return url;
 }
@@ -77,7 +77,7 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
     </script>
     <script nonce="${nonce}" type="module" src="${devOrigin}/@vite/client"></script>
     <script nonce="${nonce}" type="module" src="${devOrigin}/src/main.tsx"></script>
-    <title>SQLite Manager</title>
+    <title>sqlite-tool</title>
   </head>
   <body>
     <div id="root"><div class="sqlite-initial-loading"></div></div>

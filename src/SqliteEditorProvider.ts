@@ -35,7 +35,7 @@ interface ChangedMsg {
   label?: string;
 }
 type IncomingMsg = RequestMsg | ChangedMsg;
-const SETTINGS_KEY = 'sqliteManager.settings';
+const SETTINGS_KEY = 'sqliteTool.settings';
 const STORED_SETTING_KEYS = ['themeMode', 'defaultPageSize', 'sqlEditorFontSize'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,7 +54,7 @@ function decodeBytes(payload: BinaryPayload, language: SupportedLanguage): Uint8
 }
 
 function getDevServerPort(): number | null {
-  const raw = process.env.SQLITE_MANAGER_WEBVIEW_DEV_SERVER?.trim();
+  const raw = process.env.SQLITE_TOOL_WEBVIEW_DEV_SERVER?.trim();
   if (!raw) {
     return null;
   }
@@ -66,7 +66,7 @@ function getDevServerPort(): number | null {
  * 负责读取文件字节、渲染 Webview、postMessage 桥接、脏标记/保存/撤销/备份。
  */
 export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteDocument> {
-  public static readonly viewType = 'sqliteManager.editor';
+  public static readonly viewType = 'sqliteTool.editor';
 
   private readonly _onDidChangeCustomDocument =
     new vscode.EventEmitter<vscode.CustomDocumentEditEvent<SqliteDocument>>();
@@ -88,7 +88,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
       },
     );
     const languageWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('sqliteManager.language')) {
+      if (event.affectsConfiguration('sqliteTool.language')) {
         void provider.postSettingsToAllPanels();
       }
     });
@@ -339,7 +339,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
 
   private getLanguagePreference(): LanguagePreference {
     return normalizeLanguagePreference(
-      vscode.workspace.getConfiguration('sqliteManager').get('language', 'auto'),
+      vscode.workspace.getConfiguration('sqliteTool').get('language', 'auto'),
     );
   }
 
@@ -385,7 +385,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
       const languagePreference = normalizeLanguagePreference(value.languagePreference);
       if (languagePreference !== this.getLanguagePreference()) {
         await vscode.workspace
-          .getConfiguration('sqliteManager')
+          .getConfiguration('sqliteTool')
           .update('language', languagePreference, vscode.ConfigurationTarget.Global);
       }
     }

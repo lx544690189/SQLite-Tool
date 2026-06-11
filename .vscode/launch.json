@@ -9,7 +9,7 @@
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "dev: watch",
       "env": {
-        "SQLITE_MANAGER_WEBVIEW_DEV_SERVER": "http://localhost:19753"
+        "SQLITE_TOOL_WEBVIEW_DEV_SERVER": "http://localhost:19753"
       }
     },
     {

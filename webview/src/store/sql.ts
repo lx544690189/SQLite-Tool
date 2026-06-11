@@ -11,7 +11,7 @@ interface SqlState {
 }
 
 const MAX_HISTORY = 50;
-const HISTORY_STORAGE_PREFIX = 'sqlite-manager-sql-history:';
+const HISTORY_STORAGE_PREFIX = 'sqlite-tool-sql-history:';
 
 export const sqlState = proxy<SqlState>({ history: [] });
 

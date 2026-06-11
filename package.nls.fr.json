@@ -1,9 +1,9 @@
 {
-  "extension.displayName": "SQLite Manager",
+  "extension.displayName": "sqlite-tool",
   "extension.description": "Parcourez et modifiez visuellement les fichiers de base de données SQLite dans VS Code",
-  "editor.displayName": "SQLite Manager",
-  "configuration.title": "SQLite Manager",
-  "configuration.language.description": "Contrôle la langue d'affichage de SQLite Manager. Utilisez Auto pour suivre la langue de VS Code.",
+  "editor.displayName": "sqlite-tool",
+  "configuration.title": "sqlite-tool",
+  "configuration.language.description": "Contrôle la langue d'affichage de sqlite-tool. Utilisez Auto pour suivre la langue de VS Code.",
   "configuration.language.auto": "Auto (suivre VS Code)",
   "configuration.language.zhCN": "Chinois",
   "configuration.language.en": "Anglais",

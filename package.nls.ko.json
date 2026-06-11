@@ -1,9 +1,9 @@
 {
-  "extension.displayName": "SQLite 관리자",
+  "extension.displayName": "sqlite-tool",
   "extension.description": "VS Code에서 SQLite 데이터베이스 파일을 시각적으로 탐색하고 편집합니다",
-  "editor.displayName": "SQLite 관리자",
-  "configuration.title": "SQLite 관리자",
-  "configuration.language.description": "SQLite 관리자의 표시 언어를 제어합니다. 자동을 사용하면 VS Code 표시 언어를 따릅니다.",
+  "editor.displayName": "sqlite-tool",
+  "configuration.title": "sqlite-tool",
+  "configuration.language.description": "sqlite-tool의 표시 언어를 제어합니다. 자동을 사용하면 VS Code 표시 언어를 따릅니다.",
   "configuration.language.auto": "자동(VS Code 따르기)",
   "configuration.language.zhCN": "중국어",
   "configuration.language.en": "영어",

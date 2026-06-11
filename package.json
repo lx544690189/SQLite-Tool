@@ -1,5 +1,5 @@
 {
-  "name": "sqlite-manager",
+  "name": "sqlite-tool",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
   "version": "0.0.1",
@@ -17,7 +17,7 @@
     "configuration": {
       "title": "%configuration.title%",
       "properties": {
-        "sqliteManager.language": {
+        "sqliteTool.language": {
           "type": "string",
           "default": "auto",
           "enum": [
@@ -42,7 +42,7 @@
     },
     "customEditors": [
       {
-        "viewType": "sqliteManager.editor",
+        "viewType": "sqliteTool.editor",
         "displayName": "%editor.displayName%",
         "selector": [
           { "filenamePattern": "*.db" },

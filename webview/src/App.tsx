@@ -56,7 +56,7 @@ interface UserSettings extends LanguageSettings {
   sqlEditorFontSize: number;
 }
 
-const SETTINGS_STORAGE_KEY = 'sqlite-manager-settings';
+const SETTINGS_STORAGE_KEY = 'sqlite-tool-settings';
 const PAGE_SIZE_OPTIONS: PageSize[] = [20, 50, 100];
 const SQL_EDITOR_FONT_SIZE_OPTIONS = [12, 13, 14, 15, 16];
 const DEFAULT_SETTINGS: UserSettings = {
