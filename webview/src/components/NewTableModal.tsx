@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import Editor from '@monaco-editor/react';
 import { Button, Checkbox, ConfigProvider, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, UndoOutlined } from '@ant-design/icons';
 import { helper, refreshTables, dbState } from '../store/db';
 
 interface ColumnDef {
@@ -13,11 +14,6 @@ interface ColumnDef {
   unique: boolean;
   dflt: string;
   defaultMode: 'none' | 'literal' | 'expression' | 'null';
-  checkExpr: string;
-  refTable: string;
-  refColumn: string;
-  onDelete: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'CASCADE';
-  onUpdate: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'CASCADE';
 }
 
 const TYPE_OPTIONS = [
@@ -41,10 +37,6 @@ const DEFAULT_MODE_OPTIONS = [
   { value: 'null', label: 'NULL' },
 ];
 
-const FK_ACTION_OPTIONS = ['NO ACTION', 'RESTRICT', 'SET NULL', 'SET DEFAULT', 'CASCADE'].map(
-  (value) => ({ value, label: value }),
-);
-
 let seq = 0;
 function newCol(): ColumnDef {
   seq += 1;
@@ -58,11 +50,6 @@ function newCol(): ColumnDef {
     unique: false,
     dflt: '',
     defaultMode: 'none',
-    checkExpr: '',
-    refTable: '',
-    refColumn: '',
-    onDelete: 'NO ACTION',
-    onUpdate: 'NO ACTION',
   };
 }
 
@@ -111,14 +98,6 @@ function buildCreateSQL(tableName: string, cols: ColumnDef[]): string {
     if (c.unique && !c.pk) parts.push('UNIQUE');
     const defaultSql = buildDefaultSQL(c);
     if (defaultSql) parts.push(defaultSql);
-    if (c.checkExpr.trim()) {
-      parts.push(`CHECK (${c.checkExpr.trim()})`);
-    }
-    if (c.refTable.trim() && c.refColumn.trim()) {
-      parts.push(
-        `REFERENCES ${quoteIdent(c.refTable)} (${quoteIdent(c.refColumn)}) ON DELETE ${c.onDelete} ON UPDATE ${c.onUpdate}`,
-      );
-    }
     return parts.join(' ');
   });
   return `CREATE TABLE ${quoteIdent(tableName)} (\n${lines.join(',\n')}\n);`;
@@ -131,9 +110,13 @@ interface Props {
 
 export default function NewTableModal({ open, onClose }: Props) {
   const [tableName, setTableName] = useState('');
-  const [cols, setCols] = useState<ColumnDef[]>([newCol()]);
+  const [cols, setCols] = useState<ColumnDef[]>(() => [newCol()]);
+  const [manualSql, setManualSql] = useState(false);
+  const [editedSql, setEditedSql] = useState('');
 
-  const sql = useMemo(() => buildCreateSQL(tableName, cols), [tableName, cols]);
+  const generatedSql = useMemo(() => buildCreateSQL(tableName, cols), [tableName, cols]);
+  const sql = manualSql ? editedSql : generatedSql;
+  const editorTheme = document.documentElement.dataset.sqliteTheme === 'dark' ? 'vs-dark' : 'light';
 
   const update = (key: string, patch: Partial<ColumnDef>) =>
     setCols((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
@@ -171,33 +154,48 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     );
 
-  const canExecute = tableName.trim() && cols.some((c) => c.name.trim()) && cols.every((c) => {
+  const structureCanExecute = Boolean(tableName.trim()) && cols.some((c) => c.name.trim()) && cols.every((c) => {
     if (!c.name.trim()) {
       return true;
     }
     if (c.defaultMode !== 'none' && c.defaultMode !== 'null' && !c.dflt.trim()) {
       return false;
     }
-    if (c.refTable.trim() && !c.refColumn.trim()) {
-      return false;
-    }
-    if (!c.refTable.trim() && c.refColumn.trim()) {
-      return false;
-    }
     return true;
   });
+  const canExecute = manualSql ? sql.trim().length > 0 : structureCanExecute;
+
+  const handleSqlChange = (value?: string) => {
+    const next = value ?? '';
+    if (!manualSql && next === generatedSql) {
+      return;
+    }
+    setEditedSql(next);
+    setManualSql(true);
+  };
+
+  const restoreGeneratedSql = () => {
+    setEditedSql('');
+    setManualSql(false);
+  };
 
   const reset = () => {
     setTableName('');
     setCols([newCol()]);
+    setEditedSql('');
+    setManualSql(false);
   };
 
   const handleExecute = () => {
     try {
-      helper.createTable(sql);
+      const beforeTables = new Set(dbState.tables.map((t) => t.name));
+      helper.createTable(sql.trim());
       dbState.version++;
       refreshTables();
-      dbState.activeTable = tableName.trim();
+      const formTableName = tableName.trim();
+      const formTable = dbState.tables.find((t) => t.name === formTableName);
+      const createdTable = dbState.tables.find((t) => !beforeTables.has(t.name));
+      dbState.activeTable = (manualSql ? createdTable ?? formTable : formTable ?? createdTable)?.name ?? dbState.activeTable;
       message.success('已创建表');
       reset();
       onClose();
@@ -294,64 +292,9 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
-      title: 'CHECK',
-      dataIndex: 'checkExpr',
-      width: 200,
-      render: (_: any, r: ColumnDef) => (
-        <Input
-          size="small"
-          value={r.checkExpr}
-          placeholder="如 value >= 0"
-          onChange={(e) => update(r.key, { checkExpr: e.target.value })}
-        />
-      ),
-    },
-    {
-      title: '外键引用',
-      dataIndex: 'fk',
-      width: 360,
-      render: (_: any, r: ColumnDef) => (
-        <Space.Compact style={{ width: '100%' }}>
-          <Input
-            size="small"
-            style={{ width: 110 }}
-            value={r.refTable}
-            placeholder="引用表"
-            onChange={(e) => update(r.key, { refTable: e.target.value })}
-          />
-          <Input
-            size="small"
-            style={{ width: 110 }}
-            value={r.refColumn}
-            placeholder="引用列"
-            onChange={(e) => update(r.key, { refColumn: e.target.value })}
-          />
-          <Select
-            size="small"
-            style={{ width: 136 }}
-            value={r.onDelete}
-            options={FK_ACTION_OPTIONS}
-            onChange={(v) => update(r.key, { onDelete: v })}
-          />
-        </Space.Compact>
-      ),
-    },
-    {
-      title: '更新动作',
-      dataIndex: 'onUpdate',
-      width: 136,
-      render: (_: any, r: ColumnDef) => (
-        <Select
-          size="small"
-          style={{ width: '100%' }}
-          value={r.onUpdate}
-          options={FK_ACTION_OPTIONS}
-          onChange={(v) => update(r.key, { onUpdate: v })}
-        />
-      ),
-    },
-    {
       title: '',
+      key: 'actions',
+      fixed: 'right',
       width: 40,
       render: (_: any, r: ColumnDef) => (
         <Button
@@ -370,7 +313,7 @@ export default function NewTableModal({ open, onClose }: Props) {
     <Modal
       open={open}
       title="新建表"
-      width={980}
+      width={860}
       okText="执行建表"
       cancelText="取消"
       onOk={handleExecute}
@@ -404,6 +347,8 @@ export default function NewTableModal({ open, onClose }: Props) {
                 rowHoverBg: 'var(--sqlite-table-hover-background)',
                 cellPaddingBlockSM: 6,
                 cellPaddingInlineSM: 8,
+                stickyScrollBarBg: 'var(--sqlite-scrollbar-background)',
+                stickyScrollBarBorderRadius: 0,
               },
             },
           }}
@@ -415,6 +360,7 @@ export default function NewTableModal({ open, onClose }: Props) {
             dataSource={cols}
             columns={columns as any}
             scroll={{ x: 'max-content' }}
+            classNames={{ root: 'sqlite-data-table' }}
             styles={{
               root: { background: 'var(--sqlite-modal-background)' },
               content: { background: 'var(--sqlite-modal-background)' },
@@ -425,19 +371,71 @@ export default function NewTableModal({ open, onClose }: Props) {
           添加字段
         </Button>
         <div>
-          <Typography.Text type="secondary">SQL 预览</Typography.Text>
-          <pre
+          <div
             style={{
-              margin: '4px 0 0',
-              padding: 12,
-              borderRadius: 4,
-              background: 'var(--sqlite-code-background)',
-              overflowX: 'auto',
-              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              marginBottom: 4,
             }}
           >
-            {sql}
-          </pre>
+            <Typography.Text type="secondary">SQL 语句</Typography.Text>
+            {manualSql && (
+              <Space size={8} align="center">
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    color: 'var(--sqlite-tag-warning-foreground)',
+                    fontSize: 12,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <ExclamationCircleOutlined />
+                  已手动编辑
+                </span>
+                <Button size="small" type="text" icon={<UndoOutlined />} onClick={restoreGeneratedSql}>
+                  还原
+                </Button>
+              </Space>
+            )}
+          </div>
+          <div
+            className="sqlite-sql-editor-panel"
+            style={{
+              height: 180,
+              border: '1px solid var(--sqlite-border)',
+              borderRadius: 4,
+              overflow: 'hidden',
+              background: 'var(--sqlite-editor-background)',
+            }}
+          >
+            <Editor
+              height="180px"
+              language="sql"
+              theme={editorTheme}
+              value={sql}
+              onChange={handleSqlChange}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 12,
+                lineNumbersMinChars: 3,
+                padding: { top: 10, bottom: 10 },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                quickSuggestions: true,
+                overviewRulerBorder: false,
+                overviewRulerLanes: 0,
+                scrollbar: {
+                  verticalScrollbarSize: 6,
+                  horizontalScrollbarSize: 6,
+                  alwaysConsumeMouseWheel: false,
+                },
+              }}
+            />
+          </div>
         </div>
       </Space>
     </Modal>

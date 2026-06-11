@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import Editor from '@monaco-editor/react';
 import { useSnapshot } from 'valtio';
 import { Badge, Button, Dropdown, Empty, Input, Modal, Tooltip, Typography, message } from 'antd';
-import { CodeOutlined, EditOutlined, MoreOutlined, PlusOutlined, TableOutlined } from '@ant-design/icons';
+import { CodeOutlined, CopyOutlined, EditOutlined, MoreOutlined, PlusOutlined, TableOutlined } from '@ant-design/icons';
+import { bridge } from '../bridge';
 import { dbState, helper, renameTable, setActiveTable } from '../store/db';
 import NewTableModal from './NewTableModal';
 
@@ -34,6 +36,19 @@ export default function Sidebar() {
   };
 
   const createSql = sqlTarget ? safeCreateSQL(sqlTarget) : '';
+  const editorTheme = document.documentElement.dataset.sqliteTheme === 'dark' ? 'vs-dark' : 'light';
+
+  const copyCreateSql = async () => {
+    if (!createSql.trim()) {
+      return;
+    }
+    try {
+      await bridge.writeClipboard(createSql);
+      message.success('已复制建表 SQL');
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -149,22 +164,47 @@ export default function Sidebar() {
       <Modal
         open={sqlTarget !== null}
         title={`建表 SQL：${sqlTarget ?? ''}`}
-        footer={null}
-        width={640}
+        footer={(
+          <Button type="primary" icon={<CopyOutlined />} onClick={copyCreateSql} disabled={!createSql.trim()}>
+            复制
+          </Button>
+        )}
+        width={720}
         onCancel={() => setSqlTarget(null)}
       >
-        <pre
+        <div
+          className="sqlite-sql-editor-panel"
           style={{
-            margin: 0,
-            padding: 12,
+            height: 300,
+            border: '1px solid var(--sqlite-border)',
             borderRadius: 4,
-            background: 'var(--sqlite-code-background)',
-            overflowX: 'auto',
-            fontSize: 12,
+            overflow: 'hidden',
+            background: 'var(--sqlite-editor-background)',
           }}
         >
-          {createSql}
-        </pre>
+          <Editor
+            height="300px"
+            language="sql"
+            theme={editorTheme}
+            value={createSql}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              fontSize: 12,
+              lineNumbersMinChars: 3,
+              padding: { top: 10, bottom: 10 },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              overviewRulerBorder: false,
+              overviewRulerLanes: 0,
+              scrollbar: {
+                verticalScrollbarSize: 6,
+                horizontalScrollbarSize: 6,
+                alwaysConsumeMouseWheel: false,
+              },
+            }}
+          />
+        </div>
       </Modal>
     </div>
   );
