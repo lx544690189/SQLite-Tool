@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent, ThHTMLAttributes } from 'react';
+import { translate } from '../i18n';
 
 const MIN_COLUMN_WIDTH = 80;
 const MAX_COLUMN_WIDTH = 720;
@@ -66,7 +67,7 @@ export function ResizableHeaderCell({
           className="sqlite-column-resize-handle"
           role="separator"
           aria-orientation="vertical"
-          aria-label="调整列宽"
+          aria-label={translate('resizable.resizeColumn')}
           onPointerDown={handlePointerDown}
         />
       )}

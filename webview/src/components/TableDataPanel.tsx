@@ -27,6 +27,8 @@ import type { SorterResult } from 'antd/es/table/interface';
 import type { TableRef } from 'antd/es/table';
 import { useSnapshot } from 'valtio';
 import { addRow, dbState, editRow, helper, removeRow } from '../store/db';
+import { translate } from '../i18n';
+import { useI18n } from '../i18nContext';
 import { ROWID_ALIAS, type PageResult } from '../utils/SQLiteHelper';
 import AddDataModal from './AddDataModal';
 import {
@@ -66,10 +68,10 @@ function renderCell(value: unknown) {
 
 function getCellTitle(value: unknown, editable: boolean): string | undefined {
   if (value === null || value === undefined) {
-    return editable ? '编辑中' : undefined;
+    return editable ? translate('table.editing') : undefined;
   }
   const text = typeof value === 'object' ? '[BLOB]' : String(value);
-  return editable ? `${text}\n编辑中` : text;
+  return editable ? `${text}\n${translate('table.editing')}` : text;
 }
 
 function getColumnWidth(col: { name: string; type?: string }) {
@@ -186,6 +188,7 @@ interface TableDataPanelProps {
 }
 
 export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps) {
+  const { t } = useI18n();
   const snap = useSnapshot(dbState);
   const tableName = snap.activeTable;
   const version = snap.version;
@@ -301,7 +304,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
         const raw = getDraftColumnValue(editingDraft, col.name, getDraftValue(row[col.name], col.type));
         const value = normalizeDraftValue(schema, col.name, raw);
         if (isNumericType(col.type) && value !== null && !Number.isFinite(value)) {
-          throw new Error(`字段 "${col.name}" 请输入有效数字`);
+          throw new Error(t('table.fieldNumberInvalid', { name: col.name }));
         }
         if (!isSameCellValue(row[col.name], value)) {
           changes[col.name] = value;
@@ -313,17 +316,17 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
       }
       editRow(tableName, row, changes, schema);
       clearEditing();
-      message.success('已更新');
+      message.success(t('table.updated'));
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
-  }, [clearEditing, editingDraft, schema, tableName]);
+  }, [clearEditing, editingDraft, schema, tableName, t]);
 
   const handleDelete = (row: Record<string, any>) => {
     if (!tableName) return;
     try {
       removeRow(tableName, row, schema);
-      message.success('已删除');
+      message.success(t('table.deleted'));
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -334,7 +337,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
     try {
       addRow(tableName, data, schema);
       setAddOpen(false);
-      message.success('已新增');
+      message.success(t('table.added'));
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -391,7 +394,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
 
     if (canEdit) {
       dataCols.push({
-        title: '操作',
+        title: t('table.actions'),
         key: '__actions__',
         fixed: 'right',
         width: ACTION_COLUMN_WIDTH,
@@ -413,7 +416,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
           if (isEditing) {
             return (
               <Space size={2}>
-                <Tooltip title="保存">
+                <Tooltip title={t('common.save')}>
                   <Button
                     type="text"
                     size="small"
@@ -421,7 +424,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
                     onClick={() => confirmEdit(row)}
                   />
                 </Tooltip>
-                <Tooltip title="取消">
+                <Tooltip title={t('common.cancel')}>
                   <Button
                     type="text"
                     size="small"
@@ -435,7 +438,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
 
           return (
             <Space size={2}>
-              <Tooltip title="编辑">
+              <Tooltip title={t('common.edit')}>
                 <Button
                   type="text"
                   size="small"
@@ -445,9 +448,9 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
                 />
               </Tooltip>
               <Popconfirm
-                title="确认删除该行？"
-                okText="删除"
-                cancelText="取消"
+                title={t('table.deleteConfirm')}
+                okText={t('common.delete')}
+                cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}
                 onConfirm={() => handleDelete(row)}
               >
@@ -478,6 +481,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
     confirmEdit,
     clearEditing,
     startEdit,
+    t,
   ]);
 
   const tableComponents = useMemo(
@@ -497,7 +501,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
   }, [columns]);
 
   if (!tableName) {
-    return <Empty description="请选择左侧的表" style={{ marginTop: 80 }} />;
+    return <Empty description={t('table.noTableSelected')} style={{ marginTop: 80 }} />;
   }
 
   return (
@@ -509,9 +513,9 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
           disabled={!canEdit}
           onClick={() => setAddOpen(true)}
         >
-          新增行
+          {t('table.addRow')}
         </Button>
-        <Tooltip title="刷新">
+        <Tooltip title={t('common.refresh')}>
           <Button icon={<ReloadOutlined />} onClick={() => dbState.version++} />
         </Tooltip>
         <TableSearch
@@ -522,7 +526,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
           }}
         />
         {!canEdit && (
-          <Tag className="sqlite-tag sqlite-tag-warning">该表无主键且不支持 rowid，仅可浏览</Tag>
+          <Tag className="sqlite-tag sqlite-tag-warning">{t('table.readonlyWarning')}</Tag>
         )}
       </Space>
       {error && <Alert type="error" title={error} showIcon style={{ marginBottom: 12 }} />}
@@ -602,7 +606,7 @@ export default function TableDataPanel({ defaultPageSize }: TableDataPanelProps)
             total={result?.total ?? 0}
             showSizeChanger
             pageSizeOptions={PAGE_SIZE_OPTIONS}
-            showTotal={(total) => `共 ${total} 行`}
+            showTotal={(total) => t('table.totalRows', { total })}
             onChange={(nextPage, nextPageSize) => {
               setPage(nextPage);
               setPageSize(nextPageSize);

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Checkbox, Form, Input, InputNumber, Modal, Tag, Tooltip } from 'antd';
+import { useI18n } from '../i18nContext';
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ function isAutoPk(col: any): boolean {
 }
 
 export default function AddDataModal({ open, tableName, schema, onCancel, onOk }: Props) {
+  const { t } = useI18n();
   const [form] = Form.useForm();
   const [nullFields, setNullFields] = useState<Record<string, boolean>>({});
 
@@ -44,11 +46,11 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
   return (
     <Modal
       open={open}
-      title={`向 ${tableName} 新增行`}
+      title={t('addData.title', { tableName })}
       onOk={handleOk}
       onCancel={handleCancel}
-      okText="插入"
-      cancelText="取消"
+      okText={t('addData.insert')}
+      cancelText={t('common.cancel')}
       destroyOnHidden
       width={520}
     >
@@ -71,7 +73,7 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
                   {col.pk > 0 && <Tag className="sqlite-tag sqlite-tag-pk">PK</Tag>}
                   {col.notnull === 1 && <Tag className="sqlite-tag sqlite-tag-required">NOT NULL</Tag>}
                   <span style={{ flex: 1 }} />
-                  <Tooltip title="设为 NULL">
+                  <Tooltip title={t('addData.setNull')}>
                     <Checkbox
                       checked={isNull}
                       onChange={(e) =>
@@ -84,7 +86,7 @@ export default function AddDataModal({ open, tableName, schema, onCancel, onOk }
                 </span>
               }
               name={col.name}
-              rules={required ? [{ required: true, message: '该字段不可为空' }] : []}
+              rules={required ? [{ required: true, message: t('addData.required') }] : []}
             >
               {numeric ? (
                 <InputNumber style={{ width: '100%' }} disabled={isNull} placeholder={isNull ? 'NULL' : ''} />

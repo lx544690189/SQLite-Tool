@@ -23,20 +23,34 @@ import {
   SettingOutlined,
   TableOutlined,
 } from '@ant-design/icons';
-import zhCN from 'antd/locale/zh_CN';
 import { useSnapshot } from 'valtio';
 import { bootstrap, dbState } from './store/db';
 import Sidebar from './components/Sidebar';
 import TableDataPanel from './components/TableDataPanel';
 import SqlExecutor from './components/SqlExecutor';
 import { bridge, type FileStatus } from './bridge';
+import {
+  createTranslator,
+  dateLocales,
+  DEFAULT_LANGUAGE_SETTINGS,
+  getAntdLocale,
+  htmlLangs,
+  normalizeLanguagePreference,
+  normalizeSupportedLanguage,
+  resolveLanguage,
+  setCurrentLanguage,
+  type LanguagePreference,
+  type LanguageSettings,
+  type SupportedLanguage,
+} from './i18n';
+import { I18nProvider } from './i18nContext';
 
 type View = 'data' | 'sql';
 type ThemeMode = 'auto' | 'light' | 'dark';
 type PageSize = 20 | 50 | 100;
 type SqliteThemeVars = CSSProperties & Record<`--${string}`, string>;
 
-interface UserSettings {
+interface UserSettings extends LanguageSettings {
   themeMode: ThemeMode;
   defaultPageSize: PageSize;
   sqlEditorFontSize: number;
@@ -49,6 +63,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   themeMode: 'auto',
   defaultPageSize: 20,
   sqlEditorFontSize: 13,
+  ...DEFAULT_LANGUAGE_SETTINGS,
 };
 
 function isThemeMode(value: unknown): value is ThemeMode {
@@ -59,20 +74,37 @@ function isPageSize(value: unknown): value is PageSize {
   return PAGE_SIZE_OPTIONS.includes(value as PageSize);
 }
 
+function mergeSettings(base: UserSettings, raw: unknown): UserSettings {
+  if (!raw || typeof raw !== 'object') {
+    return base;
+  }
+  const parsed = raw as Partial<UserSettings>;
+  const languagePreference = Object.prototype.hasOwnProperty.call(parsed, 'languagePreference')
+    ? normalizeLanguagePreference(parsed.languagePreference)
+    : base.languagePreference;
+  const vscodeLanguage =
+    typeof parsed.vscodeLanguage === 'string' ? parsed.vscodeLanguage : base.vscodeLanguage;
+  const resolvedLanguage = Object.prototype.hasOwnProperty.call(parsed, 'resolvedLanguage')
+    ? normalizeSupportedLanguage(parsed.resolvedLanguage)
+    : resolveLanguage(languagePreference, vscodeLanguage);
+
+  return {
+    themeMode: isThemeMode(parsed.themeMode) ? parsed.themeMode : base.themeMode,
+    defaultPageSize: isPageSize(parsed.defaultPageSize) ? parsed.defaultPageSize : base.defaultPageSize,
+    sqlEditorFontSize: SQL_EDITOR_FONT_SIZE_OPTIONS.includes(parsed.sqlEditorFontSize ?? 0)
+      ? parsed.sqlEditorFontSize!
+      : base.sqlEditorFontSize,
+    languagePreference,
+    resolvedLanguage,
+    vscodeLanguage,
+  };
+}
+
 function readSettings(): UserSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<UserSettings>;
-    return {
-      themeMode: isThemeMode(parsed.themeMode) ? parsed.themeMode : DEFAULT_SETTINGS.themeMode,
-      defaultPageSize: isPageSize(parsed.defaultPageSize)
-        ? parsed.defaultPageSize
-        : DEFAULT_SETTINGS.defaultPageSize,
-      sqlEditorFontSize: SQL_EDITOR_FONT_SIZE_OPTIONS.includes(parsed.sqlEditorFontSize ?? 0)
-        ? parsed.sqlEditorFontSize!
-        : DEFAULT_SETTINGS.sqlEditorFontSize,
-    };
+    return mergeSettings(DEFAULT_SETTINGS, JSON.parse(raw));
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -203,11 +235,11 @@ function readVscodeDark(): boolean {
   );
 }
 
-function formatDateTime(value?: number): string {
+function formatDateTime(value: number | undefined, language: SupportedLanguage): string {
   if (!value) {
     return '--';
   }
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(dateLocales[language], {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -269,13 +301,44 @@ export default function App() {
 
   const dark = settings.themeMode === 'auto' ? vscodeDark : settings.themeMode === 'dark';
   const themeVars = useMemo(() => getSqliteThemeVars(dark), [dark]);
+  const language = settings.resolvedLanguage;
+  const tr = useMemo(() => createTranslator(language), [language]);
+  const antdLocale = useMemo(() => getAntdLocale(language), [language]);
 
   const updateSettings = (next: Partial<UserSettings>) => {
-    setSettings((prev) => ({ ...prev, ...next }));
+    const merged = mergeSettings(settings, next);
+    setSettings(merged);
+    void bridge.saveSettings({
+      themeMode: merged.themeMode,
+      defaultPageSize: merged.defaultPageSize,
+      sqlEditorFontSize: merged.sqlEditorFontSize,
+      languagePreference: merged.languagePreference,
+    });
   };
 
   useEffect(() => {
     void bootstrap();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const applyRemoteSettings = (next: Record<string, unknown>) => {
+      if (mounted) {
+        setSettings((prev) => mergeSettings(prev, next));
+      }
+    };
+
+    bridge.onSettings(applyRemoteSettings);
+    void bridge.getSettings<Record<string, unknown>>()
+      .then(applyRemoteSettings)
+      .catch(() => {
+        // 设置读取失败时保留本地兜底值。
+      });
+
+    return () => {
+      mounted = false;
+      bridge.onSettings(() => {});
+    };
   }, []);
 
   useEffect(() => {
@@ -315,6 +378,13 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
+    setCurrentLanguage(language);
+    bridge.setLanguage(language);
+    document.documentElement.lang = htmlLangs[language];
+    document.title = tr('app.title');
+  }, [language, tr]);
+
+  useEffect(() => {
     setVisitedViews((prev) => (prev[view] ? prev : { ...prev, [view]: true }));
   }, [view]);
 
@@ -339,7 +409,7 @@ export default function App() {
     <ConfigProvider
       key={dark ? 'sqlite-dark' : 'sqlite-light'}
       componentSize="small"
-      locale={zhCN}
+      locale={antdLocale}
       modal={{
         mask: { blur: true },
         styles: {
@@ -378,6 +448,7 @@ export default function App() {
         },
       }}
     >
+      <I18nProvider language={language}>
       <AntdApp
         style={{
           ...themeVars,
@@ -420,7 +491,7 @@ export default function App() {
               <Result
                 status="error"
                 icon={<DatabaseOutlined />}
-                title="无法打开数据库"
+                title={tr('app.openDatabaseError')}
                 subTitle={snap.error}
               />
             ) : (
@@ -443,7 +514,7 @@ export default function App() {
                           <ViewSwitchLabel
                             active={view === 'data'}
                             icon={<TableOutlined />}
-                            label="表数据"
+                            label={tr('app.viewData')}
                           />
                         ),
                       },
@@ -453,7 +524,7 @@ export default function App() {
                           <ViewSwitchLabel
                             active={view === 'sql'}
                             icon={<CodeOutlined />}
-                            label="SQL 执行器"
+                            label={tr('app.viewSql')}
                           />
                         ),
                       },
@@ -464,11 +535,11 @@ export default function App() {
                       type="secondary"
                       style={{ fontSize: 12, lineHeight: '24px', whiteSpace: 'nowrap' }}
                     >
-                      最近更新 {formatDateTime(fileStatus?.modified)}
+                      {tr('app.lastUpdated', { time: formatDateTime(fileStatus?.modified, language) })}
                     </Typography.Text>
                     {fileStatus?.externallyModified && (
                       <>
-                        <Tooltip title="文件已被外部更改，可以重新加载防止保存时覆盖外部修改，或避免查询不到最新数据。">
+                        <Tooltip title={tr('app.externalChangedTooltip')}>
                           <ExclamationCircleOutlined
                             style={{
                               color: 'var(--sqlite-tag-warning-foreground)',
@@ -476,7 +547,7 @@ export default function App() {
                             }}
                           />
                         </Tooltip>
-                        <Tooltip title="重新加载磁盘文件">
+                        <Tooltip title={tr('app.reloadDiskFile')}>
                           <Button
                             type="text"
                             size="small"
@@ -486,7 +557,7 @@ export default function App() {
                         </Tooltip>
                       </>
                     )}
-                    <Tooltip title="设置">
+                    <Tooltip title={tr('common.settings')}>
                       <Button
                         type="text"
                         size="small"
@@ -516,6 +587,7 @@ export default function App() {
                         dark={dark}
                         defaultPageSize={settings.defaultPageSize}
                         editorFontSize={settings.sqlEditorFontSize}
+                        language={language}
                       />
                     </div>
                   )}
@@ -527,47 +599,62 @@ export default function App() {
         )}
         <Modal
           open={settingsOpen}
-          title="设置"
+          title={tr('app.settingsTitle')}
           footer={null}
           width={420}
           destroyOnHidden
           onCancel={() => setSettingsOpen(false)}
         >
           <Form layout="vertical" style={{ marginTop: 4 }}>
-            <Form.Item label="主题模式">
+            <Form.Item label={tr('settings.language')}>
+              <Select<LanguagePreference>
+                value={settings.languagePreference}
+                onChange={(languagePreference) => updateSettings({ languagePreference })}
+                options={[
+                  { value: 'auto', label: tr('language.auto') },
+                  { value: 'zh-CN', label: tr('language.zhCN') },
+                  { value: 'en', label: tr('language.en') },
+                  { value: 'fr', label: tr('language.fr') },
+                  { value: 'ja', label: tr('language.ja') },
+                  { value: 'ko', label: tr('language.ko') },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label={tr('settings.themeMode')}>
               <Select<ThemeMode>
                 value={settings.themeMode}
                 onChange={(themeMode) => updateSettings({ themeMode })}
                 options={[
-                  { value: 'auto', label: '跟随 VS Code' },
-                  { value: 'light', label: '浅色' },
-                  { value: 'dark', label: '深色' },
+                  { value: 'auto', label: tr('settings.themeAuto') },
+                  { value: 'light', label: tr('settings.themeLight') },
+                  { value: 'dark', label: tr('settings.themeDark') },
                 ]}
               />
             </Form.Item>
-            <Form.Item label="默认分页条数">
+            <Form.Item label={tr('settings.defaultPageSize')}>
               <Select<PageSize>
                 value={settings.defaultPageSize}
                 onChange={(defaultPageSize) => updateSettings({ defaultPageSize })}
                 options={PAGE_SIZE_OPTIONS.map((value) => ({
                   value,
-                  label: `${value} 条/页`,
+                  label: tr('settings.pageSizeOption', { value }),
                 }))}
               />
             </Form.Item>
-            <Form.Item label="SQL 编辑器字号">
+            <Form.Item label={tr('settings.sqlEditorFontSize')}>
               <Select<number>
                 value={settings.sqlEditorFontSize}
                 onChange={(sqlEditorFontSize) => updateSettings({ sqlEditorFontSize })}
                 options={SQL_EDITOR_FONT_SIZE_OPTIONS.map((value) => ({
                   value,
-                  label: `${value}px`,
+                  label: tr('settings.fontSizeOption', { value }),
                 }))}
               />
             </Form.Item>
           </Form>
         </Modal>
       </AntdApp>
+      </I18nProvider>
     </ConfigProvider>
   );
 }

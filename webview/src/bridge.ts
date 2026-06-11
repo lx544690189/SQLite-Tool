@@ -3,6 +3,8 @@
  * 对外暴露与原 customApis 语义对齐的异步方法。
  */
 
+import { t, type SupportedLanguage } from './i18n';
+
 interface VsCodeApi {
   postMessage(msg: unknown): void;
   getState(): unknown;
@@ -47,18 +49,26 @@ interface FileStatusPushMsg {
   type: 'fileStatus';
   data: FileStatus;
 }
-type HostMsg = ResponseMsg | DatabasePushMsg | FileStatusPushMsg;
+interface SettingsPushMsg {
+  kind: 'push';
+  type: 'settings';
+  data: Record<string, unknown>;
+}
+type HostMsg = ResponseMsg | DatabasePushMsg | FileStatusPushMsg | SettingsPushMsg;
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 const pending = new Map<string, Pending>();
 
 type PushHandler = (data: Uint8Array) => void;
 type FileStatusHandler = (data: FileStatus) => void;
+type SettingsHandler = (data: Record<string, unknown>) => void;
 const pushHandlers: Record<'init' | 'reload', PushHandler | null> = {
   init: null,
   reload: null,
 };
 let fileStatusHandler: FileStatusHandler | null = null;
+let settingsHandler: SettingsHandler | null = null;
+let bridgeLanguage: SupportedLanguage = 'en';
 
 let seq = 0;
 function nextId(): string {
@@ -78,7 +88,7 @@ function encodeBytes(data: Uint8Array): BinaryPayload {
 
 function decodeBytes(payload: BinaryPayload): Uint8Array {
   if (!payload || payload.encoding !== 'base64' || typeof payload.value !== 'string') {
-    throw new Error('无效的数据库字节载荷');
+    throw new Error(t(bridgeLanguage, 'bridge.invalidPayload'));
   }
   const binary = atob(payload.value);
   const bytes = new Uint8Array(binary.length);
@@ -102,13 +112,17 @@ window.addEventListener('message', (event: MessageEvent<HostMsg>) => {
     if (msg.ok) {
       p.resolve(msg.result);
     } else {
-      p.reject(new Error(msg.error ?? '宿主请求失败'));
+      p.reject(new Error(msg.error ?? t(bridgeLanguage, 'bridge.hostRequestFailed')));
     }
     return;
   }
   if (msg.kind === 'push') {
     if (msg.type === 'fileStatus') {
       fileStatusHandler?.(msg.data);
+      return;
+    }
+    if (msg.type === 'settings') {
+      settingsHandler?.(msg.data);
       return;
     }
     const handler = pushHandlers[msg.type];
@@ -125,6 +139,10 @@ function request<T = unknown>(method: string, ...params: unknown[]): Promise<T> 
 }
 
 export const bridge = {
+  /** 设置桥接层错误文案语言 */
+  setLanguage(language: SupportedLanguage): void {
+    bridgeLanguage = language;
+  },
   /** 注册初始字节推送回调 */
   onInit(handler: PushHandler): void {
     pushHandlers.init = handler;
@@ -136,6 +154,10 @@ export const bridge = {
   /** 注册文件状态推送回调 */
   onFileStatus(handler: FileStatusHandler): void {
     fileStatusHandler = handler;
+  },
+  /** 注册设置推送回调 */
+  onSettings(handler: SettingsHandler): void {
+    settingsHandler = handler;
   },
   /** 通知宿主 Webview 已就绪，请求推送初始字节 */
   ready(): Promise<void> {

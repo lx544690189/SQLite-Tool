@@ -1,0 +1,13 @@
+{
+  "extension.displayName": "SQLite 管理器",
+  "extension.description": "在 VS Code 中可视化浏览与编辑 SQLite 数据库文件",
+  "editor.displayName": "SQLite 管理器",
+  "configuration.title": "SQLite 管理器",
+  "configuration.language.description": "控制 SQLite 管理器的显示语言。使用自动时跟随 VS Code 显示语言。",
+  "configuration.language.auto": "自动（跟随 VS Code）",
+  "configuration.language.zhCN": "中文",
+  "configuration.language.en": "英文",
+  "configuration.language.fr": "法语",
+  "configuration.language.ja": "日语",
+  "configuration.language.ko": "韩语"
+}

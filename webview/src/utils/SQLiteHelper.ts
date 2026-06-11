@@ -2,6 +2,7 @@ import initSqlJs from 'sql.js';
 import type { Database, SqlJsStatic } from 'sql.js';
 import { format } from 'sql-formatter';
 import { bridge, wasmUri } from '../bridge';
+import { translate } from '../i18n';
 
 export interface TableInfo {
   name: string;
@@ -59,7 +60,7 @@ class SQLiteHelper {
   /** 用新字节重建实例（revert/undo/redo 后） */
   reload(bytes: Uint8Array): void {
     if (!this.SQL) {
-      throw new Error('sql.js 尚未初始化');
+      throw new Error(translate('helper.sqljsNotInitialized'));
     }
     if (this.db) {
       this.db.close();
@@ -72,7 +73,7 @@ class SQLiteHelper {
 
   private ensureInitialized(): void {
     if (!this.initialized || !this.db) {
-      throw new Error('数据库未初始化，请先调用 init() 方法');
+      throw new Error(translate('helper.dbNotInitialized'));
     }
   }
 
@@ -103,7 +104,7 @@ class SQLiteHelper {
   getTableRowCount(tableName: string): number {
     this.ensureInitialized();
     if (!this.getTables().includes(tableName)) {
-      throw new Error(`表 "${tableName}" 不存在`);
+      throw new Error(translate('helper.tableNotFound', { tableName }));
     }
     const result = this.db!.exec(`SELECT COUNT(*) as count FROM "${tableName}"`);
     if (result.length === 0 || !result[0].values || result[0].values.length === 0) {
@@ -123,7 +124,7 @@ class SQLiteHelper {
   ): PageResult<T> {
     this.ensureInitialized();
     if (!this.getTables().includes(tableName)) {
-      throw new Error(`表 "${tableName}" 不存在`);
+      throw new Error(translate('helper.tableNotFound', { tableName }));
     }
 
     const currentPage = Math.max(1, page);
@@ -190,7 +191,7 @@ class SQLiteHelper {
   getTableSchema(tableName: string): any[] {
     this.ensureInitialized();
     if (!this.getTables().includes(tableName)) {
-      throw new Error(`表 "${tableName}" 不存在`);
+      throw new Error(translate('helper.tableNotFound', { tableName }));
     }
     const result = this.db!.exec(`PRAGMA table_info("${tableName}")`);
     if (result.length === 0) {
@@ -209,7 +210,7 @@ class SQLiteHelper {
   getCreateTableSQL(tableName: string): string {
     this.ensureInitialized();
     if (!this.getTables().includes(tableName)) {
-      throw new Error(`表 "${tableName}" 不存在`);
+      throw new Error(translate('helper.tableNotFound', { tableName }));
     }
     const result = this.db!.exec(
       `SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`,
@@ -223,7 +224,7 @@ class SQLiteHelper {
   getUniqueColumns(tableName: string): string[] {
     this.ensureInitialized();
     if (!this.getTables().includes(tableName)) {
-      throw new Error(`表 "${tableName}" 不存在`);
+      throw new Error(translate('helper.tableNotFound', { tableName }));
     }
     const uniqueColumns: string[] = [];
     const indexListResult = this.db!.exec(`PRAGMA index_list("${tableName}")`);
@@ -323,7 +324,7 @@ class SQLiteHelper {
     if (strategy.type === 'rowid') {
       const rid = row[ROWID_ALIAS];
       if (rid === undefined || rid === null) {
-        throw new Error('缺少 rowid，无法定位该行');
+        throw new Error(translate('helper.missingRowid'));
       }
       return `WHERE rowid = ${Number(rid)}`;
     }
@@ -337,7 +338,7 @@ class SQLiteHelper {
       });
       return `WHERE ${conds.join(' AND ')}`;
     }
-    throw new Error('该表无主键且不支持 rowid，无法编辑/删除行');
+    throw new Error(translate('helper.rowReadonly'));
   }
 
   /** 新增行 */
@@ -345,7 +346,7 @@ class SQLiteHelper {
     this.ensureInitialized();
     const sql = this.generateInsertSQL(tableName, data, schema);
     this.db!.run(sql);
-    this.save('新增行');
+    this.save(translate('helper.saveAddRow'));
   }
 
   /** 更新某行的单个字段 */
@@ -360,7 +361,7 @@ class SQLiteHelper {
     const where = this.buildWhere(tableName, row, schema);
     const formatted = this.formatValue(value, this.columnType(schema, column));
     this.db!.run(`UPDATE "${tableName}" SET "${column}" = ${formatted} ${where}`);
-    this.save('编辑单元格');
+    this.save(translate('helper.saveEditCell'));
   }
 
   /** 更新某行的多个字段 */
@@ -381,9 +382,9 @@ class SQLiteHelper {
       .join(', ');
     this.db!.run(`UPDATE "${tableName}" SET ${assignments} ${where}`);
     if (this.db!.getRowsModified() === 0) {
-      throw new Error('未找到要更新的行，可能数据已被刷新或删除');
+      throw new Error(translate('helper.rowNotFound'));
     }
-    this.save('编辑行');
+    this.save(translate('helper.saveEditRow'));
   }
 
   /** 删除某行 */
@@ -391,7 +392,7 @@ class SQLiteHelper {
     this.ensureInitialized();
     const where = this.buildWhere(tableName, row, schema);
     this.db!.run(`DELETE FROM "${tableName}" ${where}`);
-    this.save('删除行');
+    this.save(translate('helper.saveDeleteRow'));
   }
 
   /** 重命名表 */
@@ -399,14 +400,14 @@ class SQLiteHelper {
     this.ensureInitialized();
     this.db!.run(`ALTER TABLE "${oldName}" RENAME TO "${newName}"`);
     this.rowKeyCache.delete(oldName);
-    this.save('重命名表');
+    this.save(translate('helper.saveRenameTable'));
   }
 
   /** 执行建表语句 */
   createTable(sql: string): void {
     this.ensureInitialized();
     this.db!.run(sql);
-    this.save('新建表');
+    this.save(translate('helper.saveCreateTable'));
   }
 
   /**
@@ -424,7 +425,7 @@ class SQLiteHelper {
     const isWrite = /\b(create|drop|alter|insert|update|delete|replace|reindex|vacuum)\b/i.test(sql);
     const changed = isWrite || rowsModified > 0;
     if (changed) {
-      this.save('执行 SQL');
+      this.save(translate('helper.saveExecuteSql'));
     }
     return { results, rowsModified, changed };
   }

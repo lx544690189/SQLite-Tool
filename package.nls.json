@@ -1,0 +1,13 @@
+{
+  "extension.displayName": "SQLite Manager",
+  "extension.description": "Visually browse and edit SQLite database files in VS Code",
+  "editor.displayName": "SQLite Manager",
+  "configuration.title": "SQLite Manager",
+  "configuration.language.description": "Controls the display language of SQLite Manager. Use Auto to follow the VS Code display language.",
+  "configuration.language.auto": "Auto (Follow VS Code)",
+  "configuration.language.zhCN": "Chinese",
+  "configuration.language.en": "English",
+  "configuration.language.fr": "French",
+  "configuration.language.ja": "Japanese",
+  "configuration.language.ko": "Korean"
+}

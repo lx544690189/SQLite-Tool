@@ -1,5 +1,13 @@
 import * as vscode from 'vscode';
 import { SqliteDocument } from './SqliteDocument';
+import {
+  formatMessage,
+  normalizeLanguagePreference,
+  resolveLanguage,
+  type LanguagePreference,
+  type LanguageSettings,
+  type SupportedLanguage,
+} from './i18n';
 import { buildWebviewHtml } from './webviewHtml';
 
 /** Webview → Host 请求 */
@@ -19,6 +27,7 @@ interface FileStatus {
   openedAt: number;
   externallyModified: boolean;
 }
+type StoredSettings = Record<string, unknown>;
 /** Webview → Host 内容变更通知（标脏） */
 interface ChangedMsg {
   kind: 'changed';
@@ -26,14 +35,20 @@ interface ChangedMsg {
   label?: string;
 }
 type IncomingMsg = RequestMsg | ChangedMsg;
+const SETTINGS_KEY = 'sqliteManager.settings';
+const STORED_SETTING_KEYS = ['themeMode', 'defaultPageSize', 'sqlEditorFontSize'] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 function encodeBytes(data: Uint8Array): BinaryPayload {
   return { encoding: 'base64', value: Buffer.from(data).toString('base64') };
 }
 
-function decodeBytes(payload: BinaryPayload): Uint8Array {
+function decodeBytes(payload: BinaryPayload, language: SupportedLanguage): Uint8Array {
   if (!payload || payload.encoding !== 'base64' || typeof payload.value !== 'string') {
-    throw new Error('无效的数据库字节载荷');
+    throw new Error(formatMessage(language, 'error.invalidPayload'));
   }
   return new Uint8Array(Buffer.from(payload.value, 'base64'));
 }
@@ -64,7 +79,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SqliteEditorProvider(context);
-    return vscode.window.registerCustomEditorProvider(
+    const editor = vscode.window.registerCustomEditorProvider(
       SqliteEditorProvider.viewType,
       provider,
       {
@@ -72,6 +87,12 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
         webviewOptions: { retainContextWhenHidden: true },
       },
     );
+    const languageWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('sqliteManager.language')) {
+        void provider.postSettingsToAllPanels();
+      }
+    });
+    return vscode.Disposable.from(editor, languageWatcher);
   }
 
   async openCustomDocument(
@@ -116,7 +137,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     msg: IncomingMsg,
   ): Promise<void> {
     if (msg.kind === 'changed') {
-      this.applyChange(document, decodeBytes(msg.data), msg.label);
+      this.applyChange(document, decodeBytes(msg.data, this.getResolvedLanguage()), msg.label);
       return;
     }
     if (msg.kind === 'req') {
@@ -172,13 +193,14 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
           break;
         }
         case 'getSettings': {
-          const value = this.context.globalState.get('sqliteManager.settings', {});
-          respond(true, value);
+          respond(true, this.getSettings());
           break;
         }
         case 'saveSettings': {
-          await this.context.globalState.update('sqliteManager.settings', msg.params[0]);
-          respond(true);
+          await this.saveSettings(msg.params[0]);
+          const settings = this.getSettings();
+          respond(true, settings);
+          await this.postSettingsToAllPanels(settings);
           break;
         }
         case 'readClipboard': {
@@ -193,7 +215,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
           break;
         }
         default:
-          respond(false, undefined, `未知方法: ${msg.method}`);
+          respond(false, undefined, formatMessage(this.getResolvedLanguage(), 'error.unknownMethod', { method: msg.method }));
       }
     } catch (err) {
       respond(false, undefined, err instanceof Error ? err.message : String(err));
@@ -206,7 +228,7 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     document.setData(data);
     this._onDidChangeCustomDocument.fire({
       document,
-      label: label ?? '编辑数据',
+      label: label ?? formatMessage(this.getResolvedLanguage(), 'edit.default'),
       undo: () => this.pushReload(document, before, document.setData.bind(document)),
       redo: () => this.pushReload(document, data, document.setData.bind(document)),
     });
@@ -301,10 +323,11 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
       return;
     }
 
-    const overwrite = '继续保存';
-    const reload = '取消，先重新加载';
+    const language = this.getResolvedLanguage();
+    const overwrite = formatMessage(language, 'saveConflict.overwrite');
+    const reload = formatMessage(language, 'saveConflict.reload');
     const choice = await vscode.window.showWarningMessage(
-      '数据库文件已被外部更改，继续保存可能会覆盖外部修改。',
+      formatMessage(language, 'saveConflict.message'),
       { modal: true },
       overwrite,
       reload,
@@ -312,5 +335,67 @@ export class SqliteEditorProvider implements vscode.CustomEditorProvider<SqliteD
     if (choice !== overwrite) {
       throw new vscode.CancellationError();
     }
+  }
+
+  private getLanguagePreference(): LanguagePreference {
+    return normalizeLanguagePreference(
+      vscode.workspace.getConfiguration('sqliteManager').get('language', 'auto'),
+    );
+  }
+
+  private getResolvedLanguage(): SupportedLanguage {
+    return resolveLanguage(this.getLanguagePreference(), vscode.env.language);
+  }
+
+  private getLanguageSettings(): LanguageSettings {
+    const languagePreference = this.getLanguagePreference();
+    return {
+      languagePreference,
+      resolvedLanguage: resolveLanguage(languagePreference, vscode.env.language),
+      vscodeLanguage: vscode.env.language,
+    };
+  }
+
+  private getStoredSettings(): StoredSettings {
+    const value = this.context.globalState.get<StoredSettings>(SETTINGS_KEY, {});
+    return isRecord(value) ? value : {};
+  }
+
+  private getSettings(): StoredSettings & LanguageSettings {
+    return {
+      ...this.getStoredSettings(),
+      ...this.getLanguageSettings(),
+    };
+  }
+
+  private async saveSettings(value: unknown): Promise<void> {
+    if (!isRecord(value)) {
+      return;
+    }
+
+    const nextStored: StoredSettings = { ...this.getStoredSettings() };
+    for (const key of STORED_SETTING_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        nextStored[key] = value[key];
+      }
+    }
+    await this.context.globalState.update(SETTINGS_KEY, nextStored);
+
+    if (Object.prototype.hasOwnProperty.call(value, 'languagePreference')) {
+      const languagePreference = normalizeLanguagePreference(value.languagePreference);
+      if (languagePreference !== this.getLanguagePreference()) {
+        await vscode.workspace
+          .getConfiguration('sqliteManager')
+          .update('language', languagePreference, vscode.ConfigurationTarget.Global);
+      }
+    }
+  }
+
+  private async postSettingsToAllPanels(settings = this.getSettings()): Promise<void> {
+    await Promise.all(
+      [...this.panels.values()].map((panel) =>
+        panel.webview.postMessage({ kind: 'push', type: 'settings', data: settings }),
+      ),
+    );
   }
 }

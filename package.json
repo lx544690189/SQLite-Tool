@@ -1,7 +1,7 @@
 {
   "name": "sqlite-manager",
-  "displayName": "SQLite 管理器",
-  "description": "在 VSCode 中可视化浏览与编辑 SQLite 数据库文件",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.0.1",
   "publisher": "local",
   "license": "MIT",
@@ -14,10 +14,36 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "sqliteManager.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "zh-CN",
+            "en",
+            "fr",
+            "ja",
+            "ko"
+          ],
+          "enumItemLabels": [
+            "%configuration.language.auto%",
+            "%configuration.language.zhCN%",
+            "%configuration.language.en%",
+            "%configuration.language.fr%",
+            "%configuration.language.ja%",
+            "%configuration.language.ko%"
+          ],
+          "description": "%configuration.language.description%"
+        }
+      }
+    },
     "customEditors": [
       {
         "viewType": "sqliteManager.editor",
-        "displayName": "SQLite 管理器",
+        "displayName": "%editor.displayName%",
         "selector": [
           { "filenamePattern": "*.db" },
           { "filenamePattern": "*.sqlite" },

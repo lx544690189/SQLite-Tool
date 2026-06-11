@@ -5,6 +5,7 @@ import { CaretRightOutlined, FormatPainterOutlined, HistoryOutlined } from '@ant
 import { useSnapshot } from 'valtio';
 import type * as Monaco from 'monaco-editor';
 import { bridge } from '../bridge';
+import { createTranslator, type SupportedLanguage } from '../i18n';
 import { dbState, helper } from '../store/db';
 import { addHistory, clearHistory, loadHistory, sqlState } from '../store/sql';
 import SQLiteHelper from '../utils/SQLiteHelper';
@@ -89,27 +90,27 @@ const COMMON_SQL_SNIPPETS = [
   {
     label: 'SELECT',
     insertText: 'SELECT ${1:*}\nFROM ${2:table_name}\nWHERE ${3:condition};',
-    detail: '查询语句',
+    detailKey: 'sql.snippetQuery',
   },
   {
     label: 'INSERT',
     insertText: 'INSERT INTO ${1:table_name} (${2:columns})\nVALUES (${3:values});',
-    detail: '插入数据',
+    detailKey: 'sql.snippetInsert',
   },
   {
     label: 'UPDATE',
     insertText: 'UPDATE ${1:table_name}\nSET ${2:column = value}\nWHERE ${3:condition};',
-    detail: '更新数据',
+    detailKey: 'sql.snippetUpdate',
   },
   {
     label: 'DELETE',
     insertText: 'DELETE FROM ${1:table_name}\nWHERE ${2:condition};',
-    detail: '删除数据',
+    detailKey: 'sql.snippetDelete',
   },
   {
     label: 'CREATE TABLE',
     insertText: 'CREATE TABLE ${1:table_name} (\n  ${2:id INTEGER PRIMARY KEY},\n  ${3:name TEXT}\n);',
-    detail: '创建表',
+    detailKey: 'sql.snippetCreateTable',
   },
 ];
 
@@ -138,6 +139,7 @@ interface SqlExecutorProps {
   dark: boolean;
   defaultPageSize: number;
   editorFontSize: number;
+  language: SupportedLanguage;
 }
 
 function isPlainIdentifier(value: string): boolean {
@@ -169,12 +171,12 @@ function getCompletionKind(kind: CompletionKind): Monaco.languages.CompletionIte
   }
 }
 
-function buildStaticCompletionSources(): SqlCompletionSource[] {
+function buildStaticCompletionSources(t: ReturnType<typeof createTranslator>): SqlCompletionSource[] {
   const keywordSources = COMMON_SQL_KEYWORDS.map((keyword, index) => ({
     label: keyword,
     insertText: keyword,
     kind: 'keyword' as const,
-    detail: 'SQLite 关键字',
+    detail: t('sql.keywordDetail'),
     sortText: `1_${String(index).padStart(3, '0')}_${keyword}`,
   }));
 
@@ -182,7 +184,7 @@ function buildStaticCompletionSources(): SqlCompletionSource[] {
     label: name,
     insertText: `${name}($1)`,
     kind: 'function' as const,
-    detail: 'SQLite 常用函数',
+    detail: t('sql.functionDetail'),
     sortText: `2_${String(index).padStart(3, '0')}_${name}`,
     insertAsSnippet: true,
   }));
@@ -191,15 +193,13 @@ function buildStaticCompletionSources(): SqlCompletionSource[] {
     label: item.label,
     insertText: item.insertText,
     kind: 'snippet' as const,
-    detail: item.detail,
+    detail: t(item.detailKey as any),
     sortText: `0_${String(index).padStart(3, '0')}_${item.label}`,
     insertAsSnippet: true,
   }));
 
   return [...snippetSources, ...keywordSources, ...functionSources];
 }
-
-const STATIC_COMPLETION_SOURCES = buildStaticCompletionSources();
 
 function getEditorModel(editor: Monaco.editor.ICodeEditor): Monaco.editor.ITextModel | null {
   return editor.getModel();
@@ -333,7 +333,8 @@ function handleSqlEditorClipboardKeyDown(
   void pasteIntoSqlEditor(editor);
 }
 
-export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: SqlExecutorProps) {
+export default function SqlExecutor({ dark, defaultPageSize, editorFontSize, language }: SqlExecutorProps) {
+  const t = useMemo(() => createTranslator(language), [language]);
   const snap = useSnapshot(dbState);
   const sqlSnap = useSnapshot(sqlState);
   const [sql, setSql] = useState('SELECT * FROM sqlite_master WHERE type = \'table\';');
@@ -341,7 +342,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const completionSourcesRef = useRef<SqlCompletionSource[]>(STATIC_COMPLETION_SOURCES);
+  const completionSourcesRef = useRef<SqlCompletionSource[]>([]);
   const panelRadius = 6;
   const panelShellStyle = {
     padding: 1,
@@ -349,13 +350,15 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
     background: 'var(--sqlite-border)',
   } as const;
 
+  const staticCompletionSources = useMemo(() => buildStaticCompletionSources(t), [t]);
+
   useEffect(() => {
     void loadHistory();
   }, []);
 
   const completionSources = useMemo(() => {
     if (!snap.initialized) {
-      return STATIC_COMPLETION_SOURCES;
+      return staticCompletionSources;
     }
 
     const schemaSources = snap.tables.flatMap((table, tableIndex) => {
@@ -365,7 +368,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
           label: table.name,
           insertText: tableInsertText,
           kind: 'table',
-          detail: `表，${table.rowCount} 行`,
+          detail: t('sql.tableDetail', { count: table.rowCount }),
           sortText: `3_${String(tableIndex).padStart(3, '0')}_${table.name}`,
           commitCharacters: ['.', ' '],
         },
@@ -373,7 +376,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
           label: `SELECT * FROM ${table.name}`,
           insertText: `SELECT *\nFROM ${tableInsertText}\nLIMIT \${1:100};`,
           kind: 'snippet',
-          detail: '按表查询',
+          detail: t('sql.tableQuery'),
           sortText: `0_table_${String(tableIndex).padStart(3, '0')}_${table.name}`,
           insertAsSnippet: true,
         },
@@ -383,7 +386,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
         const columns = helper.getTableSchema(table.name);
         columns.forEach((column, columnIndex) => {
           const name = String(column.name);
-          const type = column.type ? String(column.type) : '未声明类型';
+          const type = column.type ? String(column.type) : t('sql.undeclaredType');
           tableSources.push({
             label: {
               label: name,
@@ -393,7 +396,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
             insertText: getIdentifierInsertText(name),
             kind: 'column',
             detail: `${table.name}.${name}`,
-            documentation: `字段类型：${type}`,
+            documentation: t('sql.columnTypeDoc', { type }),
             sortText: `4_${String(tableIndex).padStart(3, '0')}_${String(columnIndex).padStart(3, '0')}_${name}`,
           });
         });
@@ -404,7 +407,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
             label: `SELECT columns FROM ${table.name}`,
             insertText: `SELECT ${columnList}\nFROM ${tableInsertText}\nLIMIT \${1:100};`,
             kind: 'snippet',
-            detail: '按表字段查询',
+            detail: t('sql.tableColumnsQuery'),
             sortText: `0_columns_${String(tableIndex).padStart(3, '0')}_${table.name}`,
             insertAsSnippet: true,
           });
@@ -416,8 +419,8 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
       return tableSources;
     });
 
-    return [...STATIC_COMPLETION_SOURCES, ...schemaSources];
-  }, [snap.initialized, snap.tables, snap.version]);
+    return [...staticCompletionSources, ...schemaSources];
+  }, [snap.initialized, snap.tables, snap.version, staticCompletionSources, t]);
 
   useEffect(() => {
     completionSourcesRef.current = completionSources;
@@ -538,24 +541,24 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
   }, [resultColumns]);
 
   if (!snap.initialized) {
-    return <Empty description="数据库未就绪" style={{ marginTop: 80 }} />;
+    return <Empty description={t('sql.databaseNotReady')} style={{ marginTop: 80 }} />;
   }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 12, gap: 10 }}>
       <Space>
         <Button type="primary" icon={<CaretRightOutlined />} loading={running} onClick={() => run()}>
-          执行 (Ctrl+Enter)
+          {t('sql.execute')}
         </Button>
         <Button icon={<FormatPainterOutlined />} onClick={format}>
-          格式化
+          {t('sql.format')}
         </Button>
         <Dropdown
           trigger={['click']}
           menu={{
             items:
               sqlSnap.history.length === 0
-                ? [{ key: 'empty', label: '暂无历史', disabled: true }]
+                ? [{ key: 'empty', label: t('sql.noHistory'), disabled: true }]
                 : [
                     ...sqlSnap.history.slice(0, 20).map((h, i) => ({
                       key: String(i),
@@ -569,17 +572,17 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
                     { type: 'divider' as const },
                     {
                       key: 'clear',
-                      label: '清空历史',
+                      label: t('sql.clearHistory'),
                       danger: true,
                       onClick: () => {
                         clearHistory();
-                        message.success('已清空历史');
+                        message.success(t('sql.historyCleared'));
                       },
                     },
                   ],
           }}
         >
-          <Button icon={<HistoryOutlined />}>历史 ({sqlSnap.history.length})</Button>
+          <Button icon={<HistoryOutlined />}>{t('sql.history', { count: sqlSnap.history.length })}</Button>
         </Dropdown>
       </Space>
 
@@ -594,6 +597,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
           }}
         >
           <Editor
+            key={`sql-editor-${language}`}
             height="220px"
             language="sql"
             theme={dark ? 'vs-dark' : 'light'}
@@ -637,21 +641,21 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
               });
               editor.addAction({
                 id: 'sqlite-sql-editor-copy',
-                label: '复制 (VS Code)',
+                label: t('sql.copyVscode'),
                 contextMenuGroupId: '9_cutcopypaste',
                 contextMenuOrder: -3,
                 run: (currentEditor) => copySqlEditorSelection(currentEditor),
               });
               editor.addAction({
                 id: 'sqlite-sql-editor-cut',
-                label: '剪切 (VS Code)',
+                label: t('sql.cutVscode'),
                 contextMenuGroupId: '9_cutcopypaste',
                 contextMenuOrder: -2,
                 run: (currentEditor) => cutSqlEditorSelection(currentEditor),
               });
               editor.addAction({
                 id: 'sqlite-sql-editor-paste',
-                label: '粘贴 (VS Code)',
+                label: t('sql.pasteVscode'),
                 contextMenuGroupId: '9_cutcopypaste',
                 contextMenuOrder: -1,
                 run: (currentEditor) => pasteIntoSqlEditor(currentEditor),
@@ -693,9 +697,9 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
                 flexShrink: 0,
               }}
             >
-              <Tag className="sqlite-tag sqlite-tag-info">{result.rows.length} 行</Tag>
+              <Tag className="sqlite-tag sqlite-tag-info">{t('common.rows', { count: result.rows.length })}</Tag>
               {result.changed && (
-                <Tag className="sqlite-tag sqlite-tag-changed">影响 {result.rowsModified} 行</Tag>
+                <Tag className="sqlite-tag sqlite-tag-changed">{t('sql.affectedRows', { count: result.rowsModified })}</Tag>
               )}
             </div>
           )}
@@ -706,8 +710,8 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
                 showIcon
                 title={
                   result.changed
-                    ? `执行成功，影响 ${result.rowsModified} 行（已标记为未保存，Ctrl/Cmd+S 写回磁盘）`
-                    : '执行成功，无结果集返回'
+                    ? t('sql.successChanged', { count: result.rowsModified })
+                    : t('sql.successNoResult')
                 }
               />
             ) : result ? (
@@ -729,7 +733,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
                   defaultPageSize,
                   showSizeChanger: true,
                   pageSizeOptions: PAGE_SIZE_OPTIONS,
-                  showTotal: (total) => `共 ${total} 行`,
+                  showTotal: (total) => t('table.totalRows', { total }),
                 }}
               />
             ) : (
@@ -743,7 +747,7 @@ export default function SqlExecutor({ dark, defaultPageSize, editorFontSize }: S
                   padding: '0 4px',
                 }}
               >
-                <Typography.Text type="secondary">执行后查看结果</Typography.Text>
+                <Typography.Text type="secondary">{t('sql.viewResultsAfterRun')}</Typography.Text>
               </div>
             )}
           </div>

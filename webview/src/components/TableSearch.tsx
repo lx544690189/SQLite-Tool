@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Input, Select, Space } from 'antd';
+import { useI18n } from '../i18nContext';
 
 export interface SearchCondition {
   column: string | null;
@@ -14,6 +15,7 @@ interface Props {
 const ALL = '__all__';
 
 export default function TableSearch({ columns, onSearch }: Props) {
+  const { t } = useI18n();
   const [column, setColumn] = useState<string>(ALL);
   const [keyword, setKeyword] = useState('');
 
@@ -29,13 +31,13 @@ export default function TableSearch({ columns, onSearch }: Props) {
         style={{ width: 130 }}
         onChange={setColumn}
         options={[
-          { value: ALL, label: '全部字段' },
+          { value: ALL, label: t('tableSearch.allFields') },
           ...columns.map((c) => ({ value: c, label: c })),
         ]}
       />
       <Input.Search
         allowClear
-        placeholder="搜索关键字"
+        placeholder={t('tableSearch.keywordPlaceholder')}
         style={{ width: 220 }}
         value={keyword}
         onChange={(e) => {

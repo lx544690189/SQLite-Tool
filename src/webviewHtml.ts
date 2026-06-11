@@ -16,7 +16,7 @@ function getDevServer(): URL | null {
   }
   const url = new URL(raw);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('SQLITE_MANAGER_WEBVIEW_DEV_SERVER 仅支持 http/https 地址');
+    throw new Error('SQLITE_MANAGER_WEBVIEW_DEV_SERVER only supports http/https URLs');
   }
   return url;
 }
@@ -40,7 +40,7 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
   ].join('; ');
 
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -77,7 +77,7 @@ function buildDevWebviewHtml(webview: vscode.Webview, devServer: URL): string {
     </script>
     <script nonce="${nonce}" type="module" src="${devOrigin}/@vite/client"></script>
     <script nonce="${nonce}" type="module" src="${devOrigin}/src/main.tsx"></script>
-    <title>SQLite 管理器</title>
+    <title>SQLite Manager</title>
   </head>
   <body>
     <div id="root"><div class="sqlite-initial-loading"></div></div>

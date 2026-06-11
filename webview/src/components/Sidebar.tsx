@@ -4,10 +4,13 @@ import { useSnapshot } from 'valtio';
 import { Badge, Button, Dropdown, Empty, Input, Modal, Tooltip, Typography, message } from 'antd';
 import { CodeOutlined, CopyOutlined, EditOutlined, MoreOutlined, PlusOutlined, TableOutlined } from '@ant-design/icons';
 import { bridge } from '../bridge';
+import { translate } from '../i18n';
+import { useI18n } from '../i18nContext';
 import { dbState, helper, renameTable, setActiveTable } from '../store/db';
 import NewTableModal from './NewTableModal';
 
 export default function Sidebar() {
+  const { t: tr } = useI18n();
   const snap = useSnapshot(dbState);
   const [newTableOpen, setNewTableOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export default function Sidebar() {
     }
     try {
       renameTable(renameTarget, next);
-      message.success('已重命名');
+      message.success(tr('sidebar.renamed'));
       setRenameTarget(null);
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
@@ -44,7 +47,7 @@ export default function Sidebar() {
     }
     try {
       await bridge.writeClipboard(createSql);
-      message.success('已复制建表 SQL');
+      message.success(tr('sidebar.createSqlCopied'));
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -61,16 +64,16 @@ export default function Sidebar() {
         }}
       >
         <Typography.Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase' }}>
-          表（{snap.tables.length}）
+          {tr('sidebar.tablesCount', { count: snap.tables.length })}
         </Typography.Text>
-        <Tooltip title="新建表">
+        <Tooltip title={tr('sidebar.newTable')}>
           <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => setNewTableOpen(true)} />
         </Tooltip>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {snap.tables.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无表" style={{ marginTop: 32 }} />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr('sidebar.noTables')} style={{ marginTop: 32 }} />
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {snap.tables.map((t) => {
@@ -128,8 +131,8 @@ export default function Sidebar() {
                     trigger={['click']}
                     menu={{
                       items: [
-                        { key: 'sql', icon: <CodeOutlined />, label: '查看建表 SQL', onClick: () => setSqlTarget(t.name) },
-                        { key: 'rename', icon: <EditOutlined />, label: '重命名', onClick: () => openRename(t.name) },
+                        { key: 'sql', icon: <CodeOutlined />, label: tr('sidebar.viewCreateSql'), onClick: () => setSqlTarget(t.name) },
+                        { key: 'rename', icon: <EditOutlined />, label: tr('sidebar.rename'), onClick: () => openRename(t.name) },
                       ],
                     }}
                   >
@@ -146,27 +149,27 @@ export default function Sidebar() {
 
       <Modal
         open={renameTarget !== null}
-        title={`重命名表：${renameTarget ?? ''}`}
+        title={tr('sidebar.renameTableTitle', { name: renameTarget ?? '' })}
         onOk={confirmRename}
         onCancel={() => setRenameTarget(null)}
-        okText="确定"
-        cancelText="取消"
+        okText={tr('common.ok')}
+        cancelText={tr('common.cancel')}
         destroyOnHidden
       >
         <Input
           value={renameValue}
           onChange={(e) => setRenameValue(e.target.value)}
           onPressEnter={confirmRename}
-          placeholder="新表名"
+          placeholder={tr('sidebar.newTableName')}
         />
       </Modal>
 
       <Modal
         open={sqlTarget !== null}
-        title={`建表 SQL：${sqlTarget ?? ''}`}
+        title={tr('sidebar.createSqlTitle', { name: sqlTarget ?? '' })}
         footer={(
           <Button type="primary" icon={<CopyOutlined />} onClick={copyCreateSql} disabled={!createSql.trim()}>
-            复制
+            {tr('common.copy')}
           </Button>
         )}
         width={720}
@@ -212,8 +215,8 @@ export default function Sidebar() {
 
 function safeCreateSQL(tableName: string): string {
   try {
-    return helper.getCreateTableSQL(tableName) || '-- 未找到建表语句';
+    return helper.getCreateTableSQL(tableName) || translate('sidebar.noCreateSql');
   } catch (err) {
-    return `-- 获取失败：${err instanceof Error ? err.message : String(err)}`;
+    return translate('sidebar.createSqlFailed', { message: err instanceof Error ? err.message : String(err) });
   }
 }

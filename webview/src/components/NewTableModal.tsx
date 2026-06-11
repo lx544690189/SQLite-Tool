@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Button, Checkbox, ConfigProvider, Input, Modal, Select, Space, Table, Typography, message } from 'antd';
 import { DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, UndoOutlined } from '@ant-design/icons';
+import { translate } from '../i18n';
+import { useI18n } from '../i18nContext';
 import { helper, refreshTables, dbState } from '../store/db';
 
 interface ColumnDef {
@@ -15,27 +17,6 @@ interface ColumnDef {
   dflt: string;
   defaultMode: 'none' | 'literal' | 'expression' | 'null';
 }
-
-const TYPE_OPTIONS = [
-  {
-    label: 'SQLite 基础类型',
-    options: ['INTEGER', 'TEXT', 'REAL', 'NUMERIC', 'BLOB'].map((t) => ({ value: t, label: t })),
-  },
-  {
-    label: '常用业务类型',
-    options: ['BOOLEAN', 'DATE', 'DATETIME', 'DECIMAL', 'JSON', 'VARCHAR(255)'].map((t) => ({
-      value: t,
-      label: t,
-    })),
-  },
-];
-
-const DEFAULT_MODE_OPTIONS = [
-  { value: 'none', label: '无' },
-  { value: 'literal', label: '值' },
-  { value: 'expression', label: '表达式' },
-  { value: 'null', label: 'NULL' },
-];
 
 let seq = 0;
 function newCol(): ColumnDef {
@@ -88,7 +69,7 @@ function buildDefaultSQL(col: ColumnDef): string | null {
 function buildCreateSQL(tableName: string, cols: ColumnDef[]): string {
   const valid = cols.filter((c) => c.name.trim());
   if (!tableName.trim() || valid.length === 0) {
-    return '-- 请填写表名与至少一个字段';
+    return translate('newTable.createSqlPlaceholder');
   }
   const lines = valid.map((c) => {
     const type = normalizeType(c.type);
@@ -109,14 +90,40 @@ interface Props {
 }
 
 export default function NewTableModal({ open, onClose }: Props) {
+  const { language, t } = useI18n();
   const [tableName, setTableName] = useState('');
   const [cols, setCols] = useState<ColumnDef[]>(() => [newCol()]);
   const [manualSql, setManualSql] = useState(false);
   const [editedSql, setEditedSql] = useState('');
 
-  const generatedSql = useMemo(() => buildCreateSQL(tableName, cols), [tableName, cols]);
+  const generatedSql = useMemo(() => buildCreateSQL(tableName, cols), [tableName, cols, language]);
   const sql = manualSql ? editedSql : generatedSql;
   const editorTheme = document.documentElement.dataset.sqliteTheme === 'dark' ? 'vs-dark' : 'light';
+  const typeOptions = useMemo(
+    () => [
+      {
+        label: t('newTable.typeSQLiteBasic'),
+        options: ['INTEGER', 'TEXT', 'REAL', 'NUMERIC', 'BLOB'].map((value) => ({ value, label: value })),
+      },
+      {
+        label: t('newTable.typeBusiness'),
+        options: ['BOOLEAN', 'DATE', 'DATETIME', 'DECIMAL', 'JSON', 'VARCHAR(255)'].map((value) => ({
+          value,
+          label: value,
+        })),
+      },
+    ],
+    [t],
+  );
+  const defaultModeOptions = useMemo(
+    () => [
+      { value: 'none', label: t('newTable.defaultNone') },
+      { value: 'literal', label: t('newTable.defaultLiteral') },
+      { value: 'expression', label: t('newTable.defaultExpression') },
+      { value: 'null', label: t('common.null') },
+    ],
+    [t],
+  );
 
   const update = (key: string, patch: Partial<ColumnDef>) =>
     setCols((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
@@ -196,7 +203,7 @@ export default function NewTableModal({ open, onClose }: Props) {
       const formTable = dbState.tables.find((t) => t.name === formTableName);
       const createdTable = dbState.tables.find((t) => !beforeTables.has(t.name));
       dbState.activeTable = (manualSql ? createdTable ?? formTable : formTable ?? createdTable)?.name ?? dbState.activeTable;
-      message.success('已创建表');
+      message.success(t('newTable.created'));
       reset();
       onClose();
     } catch (err) {
@@ -206,19 +213,19 @@ export default function NewTableModal({ open, onClose }: Props) {
 
   const columns = [
     {
-      title: '字段名',
+      title: t('newTable.columnName'),
       dataIndex: 'name',
       render: (_: any, r: ColumnDef) => (
         <Input
           size="small"
           value={r.name}
-          placeholder="字段名"
+          placeholder={t('newTable.columnNamePlaceholder')}
           onChange={(e) => update(r.key, { name: e.target.value })}
         />
       ),
     },
     {
-      title: '类型',
+      title: t('newTable.type'),
       dataIndex: 'type',
       width: 150,
       render: (_: any, r: ColumnDef) => (
@@ -226,7 +233,7 @@ export default function NewTableModal({ open, onClose }: Props) {
           size="small"
           style={{ width: '100%' }}
           value={r.type}
-          options={TYPE_OPTIONS}
+          options={typeOptions}
           showSearch={{ optionFilterProp: 'label' }}
           onChange={(v) => updateType(r.key, v)}
         />
@@ -241,7 +248,7 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
-      title: '自增',
+      title: t('newTable.autoIncrement'),
       dataIndex: 'autoIncrement',
       width: 56,
       render: (_: any, r: ColumnDef) => (
@@ -253,7 +260,7 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
-      title: '非空',
+      title: t('newTable.notNull'),
       dataIndex: 'notnull',
       width: 50,
       render: (_: any, r: ColumnDef) => (
@@ -261,7 +268,7 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
-      title: '唯一',
+      title: t('newTable.unique'),
       dataIndex: 'unique',
       width: 50,
       render: (_: any, r: ColumnDef) => (
@@ -269,7 +276,7 @@ export default function NewTableModal({ open, onClose }: Props) {
       ),
     },
     {
-      title: '默认值',
+      title: t('newTable.defaultValue'),
       dataIndex: 'dflt',
       width: 250,
       render: (_: any, r: ColumnDef) => (
@@ -278,14 +285,14 @@ export default function NewTableModal({ open, onClose }: Props) {
             size="small"
             style={{ width: 82 }}
             value={r.defaultMode}
-            options={DEFAULT_MODE_OPTIONS}
+            options={defaultModeOptions}
             onChange={(v) => update(r.key, { defaultMode: v })}
           />
           <Input
             size="small"
             value={r.dflt}
             disabled={r.defaultMode === 'none' || r.defaultMode === 'null'}
-            placeholder={r.defaultMode === 'expression' ? 'CURRENT_TIMESTAMP' : '可选'}
+            placeholder={r.defaultMode === 'expression' ? 'CURRENT_TIMESTAMP' : t('common.optional')}
             onChange={(e) => update(r.key, { dflt: e.target.value })}
           />
         </Space.Compact>
@@ -312,10 +319,10 @@ export default function NewTableModal({ open, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title="新建表"
+      title={t('newTable.title')}
       width={860}
-      okText="执行建表"
-      cancelText="取消"
+      okText={t('newTable.executeCreate')}
+      cancelText={t('common.cancel')}
       onOk={handleExecute}
       onCancel={() => {
         reset();
@@ -325,10 +332,10 @@ export default function NewTableModal({ open, onClose }: Props) {
     >
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         <Space.Compact style={{ width: '100%' }}>
-          <Space.Addon>表名</Space.Addon>
+          <Space.Addon>{t('newTable.tableName')}</Space.Addon>
           <Input
             value={tableName}
-            placeholder="新表名称"
+            placeholder={t('newTable.newTableName')}
             onChange={(e) => setTableName(e.target.value)}
           />
         </Space.Compact>
@@ -368,7 +375,7 @@ export default function NewTableModal({ open, onClose }: Props) {
           />
         </ConfigProvider>
         <Button icon={<PlusOutlined />} onClick={() => setCols((prev) => [...prev, newCol()])}>
-          添加字段
+          {t('newTable.addColumn')}
         </Button>
         <div>
           <div
@@ -380,7 +387,7 @@ export default function NewTableModal({ open, onClose }: Props) {
               marginBottom: 4,
             }}
           >
-            <Typography.Text type="secondary">SQL 语句</Typography.Text>
+            <Typography.Text type="secondary">{t('newTable.sqlStatement')}</Typography.Text>
             {manualSql && (
               <Space size={8} align="center">
                 <span
@@ -394,10 +401,10 @@ export default function NewTableModal({ open, onClose }: Props) {
                   }}
                 >
                   <ExclamationCircleOutlined />
-                  已手动编辑
+                  {t('newTable.manuallyEdited')}
                 </span>
                 <Button size="small" type="text" icon={<UndoOutlined />} onClick={restoreGeneratedSql}>
-                  还原
+                  {t('common.restore')}
                 </Button>
               </Space>
             )}
