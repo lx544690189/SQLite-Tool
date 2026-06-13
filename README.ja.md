@@ -4,6 +4,9 @@
 
 sqlite-tool は VS Code 向けの SQLite データベース可視化ツールです。`.db`、`.sqlite`、`.sqlite3` ファイルを開くだけで、テーブルの閲覧、データの確認と編集、テーブル作成、SQL 実行をエディター内で行えます。
 
+
+![sqlite-tool screenshot](https://raw.githubusercontent.com/lx544690189/SQLite-Tool/main/snapshot/main.png)
+
 ## 機能
 
 - 追加設定なしで SQLite データベースファイルをカスタムエディターで開けます。
@@ -20,7 +23,7 @@ sqlite-tool は VS Code 向けの SQLite データベース可視化ツールで
 `.vsix` パッケージがある場合は、次のコマンドでインストールできます。
 
 ```bash
-code --install-extension sqlite-tool-0.0.1.vsix
+code --install-extension sqlite-tool-2.0.0.vsix
 ```
 
 VS Code の拡張機能ビューから「Install from VSIX...」を選んでインストールすることもできます。

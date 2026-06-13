@@ -4,6 +4,9 @@
 
 sqlite-tool 是一个 VS Code SQLite 数据库可视化工具。打开 `.db`、`.sqlite` 或 `.sqlite3` 文件后，可以直接在编辑器里浏览表结构、查看和编辑数据、创建表，并执行 SQL。
 
+
+![sqlite-tool screenshot](https://raw.githubusercontent.com/lx544690189/SQLite-Tool/main/snapshot/main.png)
+
 ## 功能
 
 - 直接以自定义编辑器打开 SQLite 数据库文件，无需额外配置。
@@ -20,7 +23,7 @@ sqlite-tool 是一个 VS Code SQLite 数据库可视化工具。打开 `.db`、`
 如果你拿到的是 `.vsix` 文件，可以在 VS Code 中运行：
 
 ```bash
-code --install-extension sqlite-tool-0.0.1.vsix
+code --install-extension sqlite-tool-2.0.0.vsix
 ```
 
 也可以在 VS Code 的扩展面板中选择“从 VSIX 安装...”。
