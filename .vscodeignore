@@ -3,6 +3,8 @@
 src/**
 webview/**
 docs/**
+db/**
+snapshot/**
 node_modules/**
 esbuild.js
 tsconfig.json
