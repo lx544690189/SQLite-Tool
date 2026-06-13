@@ -1,0 +1,13 @@
+[mcp_servers.gitee]
+command = "npx"
+args = [ "-y", "@gitee/mcp-gitee@latest" ]
+startup_timeout_sec = 30
+
+[mcp_servers.gitee.env]
+GITEE_API_BASE = "https://gitee.com/api/v5"
+GITEE_ACCESS_TOKEN = "${GITEE_ACCESS_TOKEN}"
+
+[mcp_servers.antd]
+command = "antd"
+args = [ "mcp" ]
+startup_timeout_sec = 30
